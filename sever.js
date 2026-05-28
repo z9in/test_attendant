@@ -404,10 +404,9 @@ app.post('/api/attendance', (req, res) => {
     const { type, lat, lng } = req.body;
     const employee_id = req.session.user.id;
     const now = new Date();
-    // 현지 시간 기준 날짜 및 시간 계산
-    const localTime = new Date(now.getTime() - (now.getTimezoneOffset() * 60000));
-    const work_date = localTime.toISOString().split('T')[0];
-    const currentTime = localTime.toISOString().split('T')[1].substring(0, 5);
+    // 한국 시간(KST) 기준 날짜 및 시간 계산 (타임존 고정)
+    const work_date = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' }); // YYYY-MM-DD
+    const currentTime = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Seoul', hour12: false }).substring(0, 5); // HH:mm
 
     if (type === 'in') {
         // 출근: 오늘 날짜의 스케줄 조회
@@ -468,11 +467,11 @@ app.post('/api/attendance', (req, res) => {
                 if (normalSchedules.length > 0 && !hasExtra) {
                     const maxEnd = normalSchedules.reduce((max, s) => s.end_time > max ? s.end_time : max, "00:00");
                     
-                    // 시간 비교를 위해 분 단위로 환산
-                    const currentTotal = now.getHours() * 60 + now.getMinutes();
+                    // 위에서 계산한 한국 시간(currentTime)을 기준으로 분 단위 환산
+                    const [cHour, cMin] = currentTime.split(':').map(Number);
+                    const currentTotal = cHour * 60 + cMin;
                     const [eHour, eMin] = maxEnd.split(':').map(Number);
                     const endTotal = eHour * 60 + eMin;
-
                     if (currentTotal > endTotal + 30) {
                         return res.json({ success: false, message: "연장 근로가 등록되지 않았습니다. 연장 근로일 경우 별도 신청을 해주세요." });
                     }
