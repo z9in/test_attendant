@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>근태 관리 시스템 프로토타입</title>
+    <style>
+        :root {
+            --primary-color: #4f46e5;
+            --bg-color: #f3f4f6;
+            --sidebar-color: #1f2937;
+            --text-color: #374151;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-color); }
+        
+        /* 사이드바 스타일 */
+        aside { width: 260px; background-color: var(--sidebar-color); color: white; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
+        aside h2 { font-size: 1.2rem; padding-bottom: 10px; border-bottom: 1px solid #374151; color: #a5b4fc; }
+        aside ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+        aside li { padding: 12px; rounded: 6px; cursor: pointer; border-radius: 6px; transition: 0.2s; font-size: 0.95rem; }
+        aside li:hover { background-color: #374151; }
+        aside li.active { background-color: var(--primary-color); font-weight: bold; }
+        .menu-group { margin-bottom: 15px; }
+        .menu-title { font-size: 0.8rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 5px; padding-left: 5px; }
+
+        /* 메인 콘텐츠 영역 */
+        main { flex: 1; padding: 30px; overflow-y: auto; }
+        .page { display: none; }
+        .page.active { display: block; }
+        h1 { margin-bottom: 20px; font-size: 1.75rem; color: #111827; }
+        
+        /* 대시보드 카드 스타일 */
+        .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card h3 { font-size: 0.9rem; color: #6b7280; margin-bottom: 10px; }
+        .card .value { font-size: 2rem; font-weight: bold; color: var(--primary-color); }
+
+        /* 테이블 및 폼 스타일 */
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-top: 15px; }
+        th, td { padding: 14px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+        th { background-color: #f9fafb; font-weight: 600; color: #4b5563; }
+        
+        .form-group { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 600px; display: flex; flex-direction: column; gap: 15px; }
+        .form-row { display: flex; flex-direction: column; gap: 5px; }
+        label { font-size: 0.9rem; font-weight: 600; }
+        input, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; }
+        button { background-color: var(--primary-color); color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #4338ca; }
+
+        /* 가상 달력 스타일 */
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .cal-day { border: 1px solid #e5e7eb; min-height: 100px; padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 5px; }
+        .cal-header { font-weight: bold; background: #f3f4f6; text-align: center; padding: 10px 0; border-radius: 6px; }
+        .schedule-tag { background: #e0e7ff; color: #4338ca; font-size: 0.75rem; padding: 4px; border-radius: 4px; font-weight: 500; }
+
+        /* 출퇴근 버튼 컴포넌트 */
+        .attendance-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; max-width: 450px; margin: 0 auto; }
+        .gps-status { display: inline-block; padding: 6px 12px; background: #def7ec; color: #03543f; border-radius: 20px; font-size: 0.85rem; font-weight: bold; margin-bottom: 20px; }
+        .btn-group { display: flex; gap: 15px; justify-content: center; margin-top: 25px; }
+        .btn-in { background-color: #10b981; width: 130px; }
+        .btn-in:hover { background-color: #059669; }
+        .btn-out { background-color: #ef4444; width: 130px; }
+        .btn-out:hover { background-color: #dc2626; }
+
+        /* 패턴 선택 아이템 스타일 */
+        .pattern-item { 
+            padding: 12px; 
+            border: 1px solid #d1d5db; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: all 0.2s;
+            background: #f9fafb;
+            margin-bottom: 10px;
+        }
+        .pattern-item:hover { background: #f3f4f6; }
+        .pattern-item.active { 
+            background: var(--primary-color); 
+            color: white; 
+            border-color: var(--primary-color);
+            box-shadow: 0 2px 4px rgba(79, 70, 229, 0.3);
+        }
+        .selected-date-highlight {
+            border: 2px solid var(--primary-color) !important;
+            background-color: #f5f3ff !important;
+        }
+        .roster-unit {
+            border: 1px solid #e5e7eb;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .badge { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+        .badge-extra { background: #fef3c7; color: #92400e; }
+        .badge-sub { background: #dcfce7; color: #166534; }
+        .badge-pending { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+        .log-tag { font-size: 0.7rem; padding: 2px; border-radius: 3px; margin-top: 2px; display: block; border: 1px solid #ddd; }
+    </style>
+</head>
+<body>
+
+    <aside id="sidebar" style="display: none;">
+        <h2>근태 관리 시스템</h2>
+        
+        <div class="menu-group" id="admin-menu-group" style="display: none;">
+            <div class="menu-title">관리자 페이지</div>
+            <ul>
+                <li class="menu-item super-only" id="menu-total" onclick="switchPage('admin-total')">📊 총괄 대시보드</li>
+                <li class="menu-item super-only" id="menu-site" onclick="loadSitePage()">🏗️ 운영 현장 관리</li>
+                <li class="menu-item super-only" id="menu-user" onclick="loadUserPage()">👥 근무자 관리</li>
+                <li class="menu-item super-only" id="menu-approval" onclick="loadApprovalPage()">✅ 연장/대체 승인</li>
+                <li class="menu-item admin-accessible" id="menu-attendance-report" onclick="loadAttendanceReport()">📑 근태 현황 확인</li>
+                <li class="menu-item admin-accessible" id="menu-schedule" onclick="loadScheduleData()">📅 근무 편성 관리</li>
+            </ul>
+        </div>
+
+        <div class="menu-group">
+            <div class="menu-title">사용자 페이지</div>
+            <ul>
+                <li class="menu-item" onclick="loadUserCalendar()">🗓️ 내 스케줄 조회</li>
+                <li class="menu-item" onclick="loadAttendancePage()">📍 출퇴근 등록</li>
+            </ul>
+            <li class="menu-item" onclick="location.href='/logout'" style="margin-top:20px; color:#fca5a5;">🚪 로그아웃</li>
+        </div>
+    </aside>
+
+    <main>
+        <section id="admin-total" class="page active">
+            <h1>📊 총괄 대시보드</h1>
+            <div class="grid-3">
+                <div class="card"><h3>금일 출근 대상자</h3><div class="value" id="stat-target">0 명</div></div>
+                <div class="card"><h3>현재 출근 완료</h3><div class="value" id="stat-done" style="color: #10b981;">0 명</div></div>
+                <div class="card"><h3>미출근 / 지각</h3><div class="value" id="stat-late" style="color: #ef4444;">0 명</div></div>
+            </div>
+        </section>
+
+        <section id="admin-site" class="page">
+            <h1>🏗️ 운영 현장 관리</h1>
+            <form class="form-group" id="site-form">
+                <h3>신규 운영 현장 및 근무패턴 등록</h3>
+                <input type="hidden" id="site-id">
+                <div class="form-row"><label>현장명</label><input type="text" id="site-name" required></div>
+                <div class="form-row"><label>현장 주소</label><input type="text" id="site-addr"></div>
+                <div class="form-row" style="flex-direction: row; gap: 10px;">
+                    <div style="flex: 1; display:flex; flex-direction:column;"><label>위도</label><input type="number" step="any" id="site-lat" placeholder="37.x"></div>
+                    <div style="flex: 1; display:flex; flex-direction:column;"><label>경도</label><input type="number" step="any" id="site-lng" placeholder="126.x"></div>
+                </div>
+                <div id="pattern-area">
+                    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                        <label style="color: var(--primary-color);">근무 패턴 설정</label>
+                        <button type="button" onclick="addPatternRow()" style="padding: 5px 10px; font-size: 0.8rem; background:#4f46e5; border-radius:4px; border:none; color:white; cursor:pointer;">+ 패턴 추가</button>
+                    </div>
+                    <div id="pattern-rows">
+                        <div class="pattern-entry" style="border: 1px solid #eee; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                            <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 주간조)" required></div>
+                            <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
+                                <input type="time" class="p-start" required style="flex:1;"> <input type="time" class="p-end" required style="flex:1;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" id="site-submit-btn" style="flex: 1;">현장 및 패턴 저장하기</button>
+                    <button type="button" id="site-cancel-btn" style="flex: 1; display:none; background:#6b7280;" onclick="resetSiteForm()">취소</button>
+                </div>
+            </form>
+
+            <h2 style="margin-top: 40px;">운영 중인 현장 목록</h2>
+            <table id="site-table">
+                <thead>
+                    <tr><th>ID</th><th>현장명</th><th>주소</th><th>위도/경도</th><th>근무 패턴</th><th>관리</th></tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </section>
+
+        <section id="admin-approval" class="page">
+            <h1>✅ 연장/대체 근무 승인 관리</h1>
+            <div class="card" style="margin-bottom: 20px;">
+                <p>최고관리자 전용: 연장 및 대체 근무 신청 내역을 검토하고 승인합니다.</p>
+            </div>
+            <table id="approval-table">
+                <thead>
+                    <tr>
+                        <th>일자</th>
+                        <th>근무자</th>
+                        <th>현장</th>
+                        <th>유형</th>
+                        <th>신청 시간</th>
+                        <th>관리</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td colspan="6" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section id="admin-attendance-report" class="page">
+            <h1>📑 직원 근태 현황 확인</h1>
+            <div class="form-group" style="max-width: 100%; margin-bottom: 20px; flex-direction: row; align-items: center; gap: 20px;">
+                <div>
+                    <label>조회 월 선택</label>
+                    <input type="month" id="report-month" onchange="loadAttendanceReport()">
+                </div>
+                <button id="report-back-btn" style="display:none; background:#6b7280; width:auto; padding:8px 15px;" onclick="loadAttendanceReport()">← 현장 목록으로</button>
+            </div>
+            
+            <div id="report-container">
+                <table id="report-table">
+                    <thead>
+                        <tr id="report-th">
+                            <!-- 동적 생성 -->
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 동적 생성 -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section id="admin-user" class="page">
+            <h1>👥 근무자 관리</h1>
+            <form class="form-group" id="user-form" style="max-width: 100%; margin-bottom: 30px;">
+                <h3>신규 근무자(사용자) 등록</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                    <div class="form-row"><label>사번(아이디)</label><input type="number" id="u-id" placeholder="예: 2024001" required></div>
+                    <div class="form-row"><label>로그인 ID</label><input type="text" id="u-username" placeholder="예: user01" required></div>
+                    <div class="form-row"><label>비밀번호</label><input type="password" id="u-pw" placeholder="초기 비밀번호" required></div>
+                    <div class="form-row"><label>성명</label><input type="text" id="u-name" required></div>
+                    <div class="form-row"><label>소속 현장</label><select id="u-site"><option value="">선택 안함</option></select></div>
+                    <div class="form-row"><label>직책</label><input type="text" id="u-pos"></div>
+                    <div class="form-row"><label>권한</label><select id="u-role" required>
+                        <option value="user">일반 사용자</option>
+                        <option value="site_admin">현장 관리자</option>
+                        <option value="super_admin">최고 관리자</option>
+                    </select></div>
+                </div>
+                <button type="submit" style="margin-top: 10px; align-self: flex-end; width: 150px;">근무자 등록</button>
+            </form>
+            <h2>등록된 근무자 명단</h2>
+            <table id="user-table"><thead><tr><th>ID</th><th>성명</th><th>소속</th><th>직책</th></tr></thead><tbody></tbody></table>
+        </section>
+
+        <section id="admin-schedule" class="page">
+            <h1>📅 근무 편성 관리</h1>
+            <div class="form-group" style="max-width: 100%; margin-bottom: 20px;">
+                <h3>관리 현장 선택</h3>
+                <div style="max-width: 300px;"><select id="sel-site" onchange="onSiteChange()"></select></div>
+                <h2 id="display-site-name" style="margin-top: 15px; color: var(--primary-color); border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;"></h2>
+            </div>
+
+            <div style="display: flex; gap: 20px; align-items: stretch;">
+                <!-- 왼쪽: 달력 -->
+                <div style="flex: 1;">
+                    <div class="form-group" style="max-width: 100%;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 id="admin-cal-title">현재 월</h3>
+                            <div class="btn-group" style="margin-top: 0;">
+                                <button onclick="changeAdminMonth(-1)" style="padding: 5px 10px; width: auto; background-color: #6b7280;">이전</button>
+                                <button onclick="changeAdminMonth(1)" style="padding: 5px 10px; width: auto; background-color: #6b7280;">다음</button>
+                            </div>
+                        </div>
+                        <div id="admin-calendar-area" class="calendar"></div>
+                    </div>
+                </div>
+
+                <!-- 오른쪽: 선택된 날짜의 로스터 상세 편집 -->
+                <div style="width: 350px; flex-shrink: 0;">
+                    <div class="form-group" style="height: 100%; min-height: 400px;">
+                        <h3 id="selected-date-view">날짜를 선택하세요</h3>
+                        <div id="daily-roster-editor" style="margin-top: 15px;">
+                            <p style="color: #9ca3af; text-align: center; margin-top: 50px;">달력에서 날짜를 클릭하면<br>편성 도구가 나타납니다.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="user-schedule" class="page">
+            <h1>🗓️ 내 근무 스케줄 (조회)</h1>
+            <div class="form-group" style="max-width: 100%; margin-bottom: 20px;">
+                <p style="margin-bottom: 15px; color:#6b7280;">로그인 사용자: <strong id="me-name"></strong>님</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3 id="user-cal-title">현재 월</h3>
+                    <div class="btn-group" style="margin-top: 0;">
+                        <button onclick="changeUserMonth(-1)" style="padding: 5px 10px; width: auto; background-color: #6b7280;">이전 달</button>
+                        <button onclick="changeUserMonth(1)" style="padding: 5px 10px; width: auto; background-color: #6b7280;">다음 달</button>
+                    </div>
+                </div>
+            </div>
+            <div id="calendar-area" class="calendar"></div>
+        </section>
+
+        <section id="user-attendance" class="page">
+            <h1>📍 출퇴근 등록</h1>
+            <div class="attendance-box">
+                <div class="gps-status" id="gps-msg">📡 GPS 확인 중...</div>
+                <h2 style="margin-bottom: 5px;" id="today-site">배정된 현장 없음</h2>
+                <p style="color: #6b7280; font-size: 0.95rem; margin-bottom: 20px;" id="today-pattern">패턴 정보를 불러오는 중...</p>
+                
+                <div style="font-size: 2.5rem; font-weight: bold; margin: 20px 0; color: #111827;" id="current-time">15:50:00</div>
+                
+                <div class="btn-group">
+                    <button class="btn-in" onclick="submitAttendance('in')">출근하기</button>
+                    <button class="btn-out" onclick="submitAttendance('out')">퇴근하기</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        function switchPage(pageId) {
+            const pages = document.querySelectorAll('.page');
+            pages.forEach(page => page.classList.remove('active'));
+            const menuItems = document.querySelectorAll('.menu-item');
+            menuItems.forEach(item => item.classList.remove('active'));
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) targetPage.classList.add('active');
+            
+            // 이벤트 객체가 있을 때만 메뉴 활성화 처리
+            const currentEvt = window.event;
+            if (currentEvt && currentEvt.currentTarget && currentEvt.currentTarget.classList) {
+                currentEvt.currentTarget.classList.add('active');
+            }
+        }
+
+        let adminYear = new Date().getFullYear();
+        let adminMonth = new Date().getMonth();
+        let userYear = new Date().getFullYear();
+        let userMonth = new Date().getMonth();
+        let allPatterns = [];
+        let allUsers = [];
+        let allSites = [];
+        let selectedDate = null;
+        let selectedPatternId = null;
+        let currentUser = null;
+
+        async function initApp() {
+            const res = await fetch('/api/user/me');
+            if (res.status === 401) return location.href = '/login';
+            currentUser = await res.json();
+            if (!currentUser.name) {
+                alert('사용자 정보를 찾을 수 없습니다.');
+                return location.href = '/login';
+            }
+            
+            const now = new Date();
+            const monthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+            document.getElementById('report-month').value = monthStr;
+
+            document.getElementById('me-name').innerText = currentUser.name;
+            document.getElementById('sidebar').style.display = 'flex';
+
+            if (currentUser.role === 'super_admin') {
+                document.getElementById('admin-menu-group').style.display = 'block';
+                loadDashboard();
+                switchPage('admin-total');
+            } else if (currentUser.role === 'site_admin') {
+                document.getElementById('admin-menu-group').style.display = 'block';
+                // 최고관리자 전용 메뉴 숨기기
+                document.querySelectorAll('.super-only').forEach(el => el.style.display = 'none');
+                loadScheduleData();
+                switchPage('admin-schedule');
+            } else {
+                // 일반 사용자
+                switchPage('user-attendance');
+                loadAttendancePage();
+            }
+        }
+        async function loadDashboard() {
+            const res = await fetch('/api/admin/dashboard');
+            if (!res.ok) {
+                console.error('Failed to fetch dashboard data:', res.status, res.statusText);
+                alert('대시보드 데이터를 불러오는데 실패했습니다.');
+                return;
+            }
+            const data = await res.json();
+            document.getElementById('stat-target').innerText = data.target + ' 명';
+            document.getElementById('stat-done').innerText = data.completed + ' 명';
+            document.getElementById('stat-late').innerText = data.late + ' 명';
+        }
+
+        // [관리자] 근무 편성 관리 페이지 로드
+        async function loadScheduleData() {
+            switchPage('admin-schedule');
+            try {
+                const fetches = [
+                    fetch('/api/admin/users'), 
+                    fetch('/api/admin/patterns')
+                ];
+                
+                // 최고 관리자일 때만 전체 현장 목록을 가져옴
+                if (currentUser.role === 'super_admin') {
+                    fetches.push(fetch('/api/admin/sites'));
+                }
+
+                const results = await Promise.all(fetches);
+                const [uRes, pRes] = results;
+                if (!uRes.ok) throw new Error(`Failed to fetch users: ${uRes.status} ${uRes.statusText}`);
+                if (!pRes.ok) throw new Error(`Failed to fetch patterns: ${pRes.status} ${pRes.statusText}`);
+
+                allUsers = await uRes.json();
+                allPatterns = await pRes.json();
+
+                const siteSelect = document.getElementById('sel-site');
+                if (currentUser.role === 'site_admin') {
+                    // 현장 관리자는 본인 현장으로 고정
+                    siteSelect.innerHTML = `<option value="${currentUser.site_id}">${currentUser.site_name}</option>`;
+                    siteSelect.disabled = true;
+                } else {
+                    const sRes = results[2];
+                    if (!sRes.ok) throw new Error(`Failed to fetch sites: ${sRes.status} ${sRes.statusText}`);
+                    const sites = await sRes.json();
+                    siteSelect.innerHTML = sites.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+                    siteSelect.disabled = false;
+                }
+                
+                onSiteChange();
+                renderAdminCalendar();
+            } catch (error) {
+                console.error('Error loading schedule data:', error);
+                alert('근무 편성 데이터를 불러오는 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        function onSiteChange() {
+            const siteSelect = document.getElementById('sel-site');
+            const siteId = siteSelect.value;
+            const siteName = siteSelect.options[siteSelect.selectedIndex].text;
+            document.getElementById('display-site-name').innerText = `📍 관리 중인 현장: ${siteName}`;
+
+            selectedDate = null;
+            document.getElementById('daily-roster-editor').innerHTML = '<p style="color: #9ca3af; text-align: center; margin-top: 50px;">날짜를 선택하여 편집을 시작하세요.</p>';
+            renderAdminCalendar();
+        }
+
+        async function selectAdminDate(dateStr) {
+            selectedDate = dateStr;
+            document.getElementById('selected-date-view').innerText = `📅 ${dateStr} 로스터`;
+            renderAdminCalendar(); // 하이라이트 적용을 위해 재렌더링
+            
+            const siteId = document.getElementById('sel-site').value;
+            const patterns = allPatterns.filter(p => p.site_id == siteId);
+            
+            // 현재 날짜의 배정 데이터 가져오기
+            const res = await fetch('/api/admin/schedules');
+            const schedules = await res.json();
+            const dailySchedules = schedules.filter(s => s.start_date === dateStr && s.site_id == siteId);
+
+            const container = document.getElementById('daily-roster-editor');
+            container.innerHTML = patterns.map(p => {
+                const assigned = dailySchedules.filter(s => s.pattern_id === p.id);
+                return `
+                    <div class="roster-unit">
+                        <div style="font-weight:bold; margin-bottom:8px; color:var(--primary-color);">
+                            ${p.pattern_name} <small style="color:#6b7280;">(${p.start_time}~${p.end_time})</small>
+                        </div>
+                        <div id="roster-list-${p.id}" style="margin-bottom:10px;">
+                            ${assigned.map(s => `
+                                <div style="display:flex; justify-content:space-between; font-size:0.9rem; padding:4px 0; border-bottom:1px dashed #eee;">
+                                    <span>👤 ${s.employee_name}</span>
+                                    <span style="color:#ef4444; cursor:pointer;" onclick="deleteSchedule(${s.id})">✕</span>
+                                </div>
+                            `).join('') || '<p style="font-size:0.8rem; color:#9ca3af;">배정 인원 없음</p>'}
+                        </div>
+                        <div style="margin-bottom:10px; padding: 10px; background:#f9fafb; border-radius:6px; border: 1px solid #eee;">
+                            <div class="form-row" style="margin-bottom:8px;">
+                                <label style="font-size:0.8rem;">편성 유형</label>
+                                <select id="type-${p.id}" onchange="toggleExtraTime(${p.id})" style="font-size:0.85rem; padding:4px;">
+                                    <option value="normal">일반 근무</option>
+                                    <option value="extra">연장 근무 (승인 필요)</option>
+                                    <option value="substitute">대체 근무 (승인 필요)</option>
+                                </select>
+                            </div>
+                            <div id="extra-time-box-${p.id}" style="display:none; gap:5px; margin-bottom:8px;">
+                                <input type="time" id="ex-start-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;">
+                                <input type="time" id="ex-end-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;">
+                            </div>
+                        </div>
+                        <div style="display:flex; gap:5px;">
+                            <select id="add-user-${p.id}" style="flex:1; padding:5px; font-size:0.85rem;">
+                                ${allUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+                            </select>
+                            <button onclick="assignToPattern(${p.id})" style="padding:5px 10px; font-size:0.8rem;">추가</button>
+                        </div>
+                    </div>
+                `;
+            }).join('') || '<p>등록된 근무 패턴이 없습니다.</p>';
+        }
+
+        function toggleExtraTime(patternId) {
+            const type = document.getElementById(`type-${patternId}`).value;
+            const box = document.getElementById(`extra-time-box-${patternId}`);
+            box.style.display = (type === 'extra' || type === 'substitute') ? 'flex' : 'none';
+        }
+
+        async function assignToPattern(patternId) {
+            const userId = document.getElementById(`add-user-${patternId}`).value;
+            if (!userId) {
+                alert('편성할 근무자를 선택해주세요.');
+                return;
+            }
+
+            const type = document.getElementById(`type-${patternId}`).value;
+            const exStart = document.getElementById(`ex-start-${patternId}`).value;
+            const exEnd = document.getElementById(`ex-end-${patternId}`).value;
+
+            if ((type === 'extra' || type === 'substitute') && (!exStart || !exEnd)) {
+                alert('연장/대체 근무의 시간을 입력해주세요.');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/schedules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        employee_id: userId,
+                        pattern_id: patternId,
+                        start_date: selectedDate,
+                        end_date: selectedDate,
+                        type: type,
+                        extra_start: exStart,
+                        extra_end: exEnd
+                    })
+                });
+                
+                const result = await res.json();
+                if (result.success) {
+                    if(type !== 'normal') alert('연장/대체 근무가 신청되었습니다. 최고관리자 승인 후 반영됩니다.');
+                    selectAdminDate(selectedDate);
+                } else {
+                    alert('배정 실패: ' + (result.message || '알 수 없는 오류'));
+                }
+            } catch (error) {
+                console.error('Error assigning pattern:', error);
+                alert('서버 통신 중 오류가 발생했습니다.');
+            }
+        }
+
+        async function deleteSchedule(id) {
+            if(!confirm('해당 배정을 취소하시겠습니까?')) return;
+            const res = await fetch(`/api/admin/schedules/delete/${id}`);
+            const result = await res.json();
+            if (result.success) {
+                selectAdminDate(selectedDate);
+            }
+        }
+
+        function changeAdminMonth(delta) {
+            adminMonth += delta;
+            if (adminMonth < 0) { adminMonth = 11; adminYear--; }
+            else if (adminMonth > 11) { adminMonth = 0; adminYear++; }
+            renderAdminCalendar();
+        }
+
+        async function renderAdminCalendar() {
+            const area = document.getElementById('admin-calendar-area');
+            if (!area) return;
+
+            let schedules = [];
+            try {
+                const res = await fetch('/api/admin/schedules');
+                if (res.ok) schedules = await res.json();
+            } catch (err) {
+                console.error("편성 데이터 로드 실패", err);
+            }
+            
+            if (!Array.isArray(schedules)) schedules = [];
+            
+            const title = document.getElementById('admin-cal-title');
+            title.innerText = `${adminYear}년 ${String(adminMonth + 1).padStart(2, '0')}월`;
+            
+            area.innerHTML = ''; // 데이터를 가져온 후, 그리기 직전에 기존 내용을 비움
+
+            // 요일 헤더
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            days.forEach((d, i) => {
+                const div = document.createElement('div');
+                div.className = 'cal-header';
+                div.innerText = d;
+                if (i === 0) div.style.color = 'red';
+                if (i === 6) div.style.color = 'blue';
+                area.appendChild(div);
+            });
+            
+            const firstDay = new Date(adminYear, adminMonth, 1).getDay();
+            const lastDate = new Date(adminYear, adminMonth + 1, 0).getDate();
+            
+            // 이전 달 공백
+            for (let i = 0; i < firstDay; i++) {
+                area.appendChild(document.createElement('div'));
+            }
+            
+            // 날짜 렌더링
+            for (let i = 1; i <= lastDate; i++) {
+                const dateStr = `${adminYear}-${String(adminMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const div = document.createElement('div');
+                div.className = 'cal-day';
+                if (dateStr === selectedDate) div.classList.add('selected-date-highlight');
+                div.style.cursor = 'pointer';
+                div.innerHTML = `<span class="day-num">${i}</span>`;
+                div.onclick = () => selectAdminDate(dateStr);
+                
+                // 해당 날짜의 배정 내역 필터링
+                const currentSiteId = document.getElementById('sel-site')?.value;
+                const dailySchedules = schedules.filter(s => {
+                    const start = s.start_date;
+                    const end = s.end_date || '9999-12-31';
+                    return dateStr >= start && dateStr <= end && s.site_id == currentSiteId;
+                });
+                
+                dailySchedules.forEach(s => {
+                    const tag = document.createElement('div');
+                    tag.className = 'schedule-tag';
+                    tag.style.fontSize = '0.75rem';
+                    tag.style.marginTop = '2px';
+                    
+                    let typeLabel = '';
+                    if(s.type === 'extra') typeLabel = ' [연장]';
+                    if(s.type === 'substitute') typeLabel = ' [대체]';
+                    if(s.status === 'pending') typeLabel += ' (대기)';
+
+                    tag.innerText = `${s.employee_name}${typeLabel}`;
+                    div.appendChild(tag);
+                });
+                area.appendChild(div);
+            }
+        }
+
+        // [사용자] 스케줄 페이지 로드
+        function loadUserCalendar() {
+            switchPage('user-schedule');
+            renderUserCalendar();
+        }
+
+        function changeUserMonth(delta) {
+            userMonth += delta;
+            if (userMonth < 0) { userMonth = 11; userYear--; }
+            else if (userMonth > 11) { userMonth = 0; userYear++; }
+            renderUserCalendar();
+        }
+
+        async function renderUserCalendar() {
+            let schedules = [];
+            let logs = [];
+            const currentMonthStr = `${userYear}-${String(userMonth + 1).padStart(2, '0')}`;
+
+            try {
+                const [sRes, lRes] = await Promise.all([
+                    fetch('/api/user/schedule'),
+                    fetch(`/api/user/attendance-logs?month=${currentMonthStr}`)
+                ]);
+                if (sRes.ok) schedules = await sRes.json();
+                if (lRes.ok) logs = await lRes.json();
+            } catch (err) {
+                console.error("데이터 로드 실패", err);
+            }
+            
+            const title = document.getElementById('user-cal-title');
+            title.innerText = `${userYear}년 ${String(userMonth + 1).padStart(2, '0')}월`;
+            
+            const area = document.getElementById('calendar-area');
+            area.innerHTML = ''; // 데이터를 다 가져온 직후에 비움
+
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            days.forEach((d, i) => {
+                const div = document.createElement('div');
+                div.className = 'cal-header';
+                div.innerText = d;
+                if (i === 0) div.style.color = 'red';
+                if (i === 6) div.style.color = 'blue';
+                area.appendChild(div);
+            });
+
+            const firstDay = new Date(userYear, userMonth, 1).getDay();
+            const lastDate = new Date(userYear, userMonth + 1, 0).getDate();
+
+            for (let i = 0; i < firstDay; i++) {
+                area.appendChild(document.createElement('div'));
+            }
+
+            for (let i = 1; i <= lastDate; i++) {
+                const dateStr = `${userYear}-${String(userMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                const div = document.createElement('div');
+                div.className = 'cal-day';
+                div.innerHTML = `<span class="day-num">${i}</span>`;
+                
+                const dailySchedules = schedules.filter(s => {
+                    const start = s.start_date;
+                    const end = s.end_date || '9999-12-31';
+                    return dateStr >= start && dateStr <= end;
+                });
+                
+                dailySchedules.forEach(s => {
+                    const tag = document.createElement('div');
+                    tag.className = 'schedule-tag';
+                    tag.innerText = `${s.site_name} (${s.pattern_name})`;
+                    div.appendChild(tag);
+                });
+
+                // 근태 로그 표시 (이미 지나간 근무)
+                const dayLog = logs.find(l => l.work_date === dateStr);
+                if (dayLog) {
+                    const inT = new Date(dayLog.check_in_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const outT = dayLog.check_out_time ? new Date(dayLog.check_out_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--';
+                    const logDiv = document.createElement('div');
+                    logDiv.className = 'log-tag';
+                    logDiv.innerHTML = `<span style="color:#6b7280;">📍 ${dayLog.status}</span><br>⏳ ${inT} ~ ${outT}`;
+                    div.appendChild(logDiv);
+                }
+                area.appendChild(div);
+            }
+        }
+
+        // [관리자] 현장 관리 페이지 로드
+        function loadSitePage() {
+            switchPage('admin-site');
+            loadSites();
+        }
+
+        // [관리자] 근태 현황 리포트 로드
+        async function loadAttendanceReport() {
+            switchPage('admin-attendance-report');
+            const month = document.getElementById('report-month').value;
+            const container = document.getElementById('report-container');
+            const backBtn = document.getElementById('report-back-btn');
+            
+            if (currentUser.role === 'super_admin') {
+                backBtn.style.display = 'none';
+                const res = await fetch(`/api/admin/attendance/summary?month=${month}`);
+                const data = await res.json();
+                
+                document.getElementById('report-th').innerHTML = `<th>현장 ID</th><th>현장명</th><th>출근 기록 수 (해당월)</th><th>상세보기</th>`;
+                const tbody = document.querySelector('#report-table tbody');
+                tbody.innerHTML = data.map(s => `
+                    <tr>
+                        <td>${s.id}</td>
+                        <td>${s.name}</td>
+                        <td>${s.log_count} 건</td>
+                        <td><button onclick="showSiteDetailReport(${s.id}, '${s.name}')" style="padding:5px 10px; font-size:0.8rem;">상세보기</button></td>
+                    </tr>
+                `).join('');
+            } else {
+                // 현장 관리자는 바로 상세 내역 표시
+                showSiteDetailReport(currentUser.site_id, currentUser.site_name);
+            }
+        }
+
+        async function showSiteDetailReport(siteId, siteName) {
+            const month = document.getElementById('report-month').value;
+            if (currentUser.role === 'super_admin') {
+                document.getElementById('report-back-btn').style.display = 'inline-block';
+            }
+            
+            const res = await fetch(`/api/admin/attendance/details?site_id=${siteId}&month=${month}`);
+            const data = await res.json();
+            
+            document.getElementById('report-th').innerHTML = `<th>일자</th><th>근무자</th><th>배정패턴</th><th>출근시간</th><th>퇴근시간</th><th>상태</th>`;
+            const tbody = document.querySelector('#report-table tbody');
+            
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:40px;">근태 기록이 없습니다.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(log => {
+                const checkIn = log.check_in_time ? new Date(log.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '-';
+                const checkOut = log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '진행중';
+                const statusColor = log.status === '지각' ? '#ef4444' : '#10b981';
+                return `
+                    <tr>
+                        <td>${log.work_date}</td>
+                        <td>${log.employee_name}</td>
+                        <td>${log.pattern_name || '-'}</td>
+                        <td>${checkIn}</td>
+                        <td>${checkOut}</td>
+                        <td style="color:${statusColor}; font-weight:bold;">${log.status}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // [관리자] 승인 페이지 로드
+        async function loadApprovalPage() {
+            switchPage('admin-approval');
+            const res = await fetch('/api/admin/approvals');
+            const list = await res.json();
+            const tbody = document.querySelector('#approval-table tbody');
+            
+            if(list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = list.map(a => {
+                const typeName = a.type === 'extra' ? '연장' : '대체';
+                const timeStr = a.extra_start ? `${a.extra_start} ~ ${a.extra_end}` : `${a.p_start} ~ ${a.p_end}`;
+                return `
+                    <tr>
+                        <td>${a.start_date}</td>
+                        <td>${a.employee_name}</td>
+                        <td>${a.site_name}</td>
+                        <td><span class="badge ${a.type==='extra'?'badge-extra':'badge-sub'}">${typeName}</span></td>
+                        <td>${timeStr}</td>
+                        <td>
+                            <button onclick="processApproval(${a.id}, 'approved')" style="padding:4px 8px; font-size:0.75rem; background:#10b981;">승인</button>
+                            <button onclick="processApproval(${a.id}, 'rejected')" style="padding:4px 8px; font-size:0.75rem; background:#ef4444;">거절</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function processApproval(id, status) {
+            const action = status === 'approved' ? '승인' : '거절';
+            if(!confirm(`해당 신청을 ${action}하시겠습니까?`)) return;
+
+            const res = await fetch('/api/admin/approvals/process', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, status })
+            });
+            const result = await res.json();
+            if(result.success) {
+                alert(`처리가 완료되었습니다.`);
+                loadApprovalPage();
+            } else {
+                alert('처리 실패');
+            }
+        }
+
+        // 현장 목록 불러오기
+        async function loadSites() {
+            const res = await fetch('/api/admin/sites');
+            allSites = await res.json();
+            const tbody = document.querySelector('#site-table tbody');
+            tbody.innerHTML = allSites.map(s => {
+                const patternsStr = s.patterns && s.patterns.length > 0 
+                    ? s.patterns.map(p => `${p.pattern_name}(${p.start_time}~${p.end_time})`).join(', ')
+                    : '-';
+                return `
+                <tr>
+                    <td>${s.id}</td>
+                    <td>${s.name}</td>
+                    <td>${s.address || '-'}</td>
+                    <td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
+                    <td><small>${patternsStr}</small></td>
+                    <td>
+                        <button onclick="editSite(${s.id})" style="padding: 5px 10px; font-size: 0.8rem;">수정</button>
+                        <button onclick="deleteSite(${s.id})" style="padding: 5px 10px; font-size: 0.8rem; background:#ef4444;">삭제</button>
+                    </td>
+                </tr>
+            `}).join('');
+        }
+
+        async function deleteSite(id) {
+            if (!confirm('현장과 소속된 모든 근무 패턴이 삭제됩니다. 정말 삭제하시겠습니까?')) return;
+            const res = await fetch('/api/admin/sites/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('삭제되었습니다.');
+                loadSites();
+            } else {
+                alert('삭제 실패: ' + result.message);
+            }
+        }
+
+        function editSite(id) {
+            const site = allSites.find(s => s.id === id);
+            if (!site) return;
+
+            document.getElementById('site-id').value = site.id;
+            document.getElementById('site-name').value = site.name;
+            document.getElementById('site-addr').value = site.address;
+            document.getElementById('site-lat').value = site.latitude;
+            document.getElementById('site-lng').value = site.longitude;
+            
+            const container = document.getElementById('pattern-rows');
+            container.innerHTML = '';
+            if (site.patterns && site.patterns.length > 0) {
+                site.patterns.forEach(p => {
+                    addPatternRow(p.pattern_name, p.start_time, p.end_time);
+                });
+            } else {
+                addPatternRow();
+            }
+            
+            document.getElementById('site-submit-btn').innerText = '현장 정보 수정하기';
+            document.getElementById('site-cancel-btn').style.display = 'inline-block';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function resetSiteForm() {
+            document.getElementById('site-form').reset();
+            document.getElementById('site-id').value = '';
+            document.getElementById('site-submit-btn').innerText = '현장 및 패턴 저장하기';
+            document.getElementById('site-cancel-btn').style.display = 'none';
+            document.getElementById('pattern-rows').innerHTML = `
+                <div class="pattern-entry" style="border: 1px solid #eee; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
+                    <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 주간조)" required></div>
+                    <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
+                        <input type="time" class="p-start" required style="flex:1;"> <input type="time" class="p-end" required style="flex:1;">
+                    </div>
+                </div>
+            `;
+        }
+
+        // 근무 패턴 입력행 추가
+        function addPatternRow(name = '', start = '', end = '') {
+            const container = document.getElementById('pattern-rows');
+            const div = document.createElement('div');
+            div.className = 'pattern-entry';
+            div.style.border = '1px solid #eee';
+            div.style.padding = '10px';
+            div.style.borderRadius = '6px';
+            div.style.marginBottom = '10px';
+            div.innerHTML = `
+                <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 야간조)" required value="${name}"></div>
+                <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
+                    <input type="time" class="p-start" required style="flex:1;" value="${start}"> <input type="time" class="p-end" required style="flex:1;" value="${end}">
+                    <button type="button" onclick="this.parentElement.parentElement.remove()" style="background:#ef4444; width:40px; padding:0; color:white; border:none; border-radius:4px; cursor:pointer;">X</button>
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        // [관리자] 근무자 관리 페이지 로드
+        async function loadUserPage() {
+            switchPage('admin-user');
+            
+            // 현장 목록 가져와서 콤보박스 채우기
+            const res = await fetch('/api/admin/sites');
+            const sites = await res.json();
+            const siteSelect = document.getElementById('u-site');
+            siteSelect.innerHTML = '<option value="">선택 안함</option>' + 
+                sites.map(s => `<option value="${s.id}">${s.name}</option>`).join(''); // Store site.id, not site.name
+            
+            loadUsers();
+        }
+
+        // 근무자 명단 불러오기
+        async function loadUsers() {
+            const res = await fetch('/api/admin/users');
+            const users = await res.json();
+            const tbody = document.querySelector('#user-table tbody');
+            // department 필드에 site_name이 저장되므로 department로 표시
+            tbody.innerHTML = users.map(u => `
+                <tr>
+                    <td>${u.id}</td>
+                    <td>${u.name}</td>
+                    <td>${u.department || '-'}</td>
+                    <td>${u.position || '-'}</td>
+                </tr>
+            `).join('');
+        }
+
+        // 근무자 등록 폼 제출
+        document.getElementById('user-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const body = {
+                id: document.getElementById('u-id').value,
+                username: document.getElementById('u-username').value,
+                password: document.getElementById('u-pw').value,
+                name: document.getElementById('u-name').value,
+                department: document.getElementById('u-site').options[document.getElementById('u-site').selectedIndex].text, // Store site name in department
+                site_id: document.getElementById('u-site').value || null, // Store site_id for site_admin
+                position: document.getElementById('u-pos').value,
+                role: document.getElementById('u-role').value
+            };
+
+            const res = await fetch('/api/admin/users', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+            if(result.success) {
+                alert('근무자가 등록되었습니다.');
+                e.target.reset();
+                loadUsers();
+            } else {
+                alert('등록 실패: ' + result.message);
+            }
+        };
+
+        // 현장 등록 폼 제출
+        document.getElementById('site-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const patterns = Array.from(document.querySelectorAll('.pattern-entry')).map(entry => ({
+                name: entry.querySelector('.p-name').value,
+                start: entry.querySelector('.p-start').value,
+                end: entry.querySelector('.p-end').value
+            }));
+
+            const body = {
+                id: document.getElementById('site-id').value ? Number(document.getElementById('site-id').value) : null,
+                name: document.getElementById('site-name').value,
+                address: document.getElementById('site-addr').value,
+                lat: parseFloat(document.getElementById('site-lat').value),
+                lng: parseFloat(document.getElementById('site-lng').value),
+                patterns: patterns
+            };
+
+            const res = await fetch('/api/admin/sites', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(body)
+            });
+            const result = await res.json();
+            if(result.success) {
+                alert(body.id ? '현장 정보가 수정되었습니다.' : '현장이 등록되었습니다.');
+                resetSiteForm();
+                loadSites();
+            } else {
+                alert('등록 실패');
+            }
+        };
+
+        async function loadAttendancePage() {
+            switchPage('user-attendance');
+            const res = await fetch('/api/user/me');
+            const data = await res.json();
+            if (data.site_name) {
+                document.getElementById('today-site').innerText = data.site_name;
+                document.getElementById('today-pattern').innerText = `배정 패턴: ${data.pattern_name} (${data.start_time} ~ ${data.end_time})`;
+                navigator.geolocation.watchPosition(pos => {
+                    const dist = getDistance(pos.coords.latitude, pos.coords.longitude, data.latitude, data.longitude);
+                    const msgEl = document.getElementById('gps-msg');
+                    if (dist <= 50) {
+                        msgEl.innerText = "📡 현장 GPS 인증 완료 (반경 50m 이내)";
+                        msgEl.style.background = "#def7ec";
+                    } else {
+                        msgEl.innerText = `📡 현장 이탈 (거리: ${Math.round(dist)}m)`;
+                        msgEl.style.background = "#fee2e2";
+                    }
+                });
+            }
+        }
+        async function submitAttendance(type) {
+            navigator.geolocation.getCurrentPosition(async pos => {
+                const res = await fetch('/api/attendance', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ type, lat: pos.coords.latitude, lng: pos.coords.longitude })
+                });
+                const result = await res.json();
+                alert(result.message);
+            });
+        }
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371e3;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+        initApp();
+        setInterval(() => {
+            const timeEl = document.getElementById('current-time');
+            if(timeEl) {
+                const now = new Date();
+                timeEl.innerText = now.toTimeString().split(' ')[0];
+            }
+        }, 1000);
+    </script>
+</body>
+</html>
