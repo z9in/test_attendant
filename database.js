@@ -46,6 +46,8 @@ db.serialize(() => {
         status TEXT DEFAULT 'approved', -- 'pending', 'approved', 'rejected'
         extra_start TEXT,
         extra_end TEXT,
+        rest_time INTEGER DEFAULT 0,
+        rejection_reason TEXT,
         FOREIGN KEY(employee_id) REFERENCES employees(id),
         FOREIGN KEY(pattern_id) REFERENCES work_patterns(id)
     )`);
@@ -70,7 +72,9 @@ db.serialize(() => {
         "ALTER TABLE employee_schedules ADD COLUMN status TEXT DEFAULT 'approved'",
         "ALTER TABLE employee_schedules ADD COLUMN extra_start TEXT",
         "ALTER TABLE employee_schedules ADD COLUMN extra_end TEXT",
-        "ALTER TABLE work_patterns ADD COLUMN rest_time INTEGER DEFAULT 0"
+        "ALTER TABLE work_patterns ADD COLUMN rest_time INTEGER DEFAULT 0",
+        "ALTER TABLE employee_schedules ADD COLUMN rest_time INTEGER DEFAULT 0",
+        "ALTER TABLE employee_schedules ADD COLUMN rejection_reason TEXT"
     ];
     columns.forEach(sql => db.run(sql, (err) => { /* 컬럼 이미 존재 시 에러 무시 */ }));
 

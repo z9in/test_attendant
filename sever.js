@@ -240,13 +240,13 @@ app.get('/api/admin/patterns', (req, res) => {
 
 app.post('/api/admin/schedules', (req, res) => {
     if (!['super_admin', 'site_admin'].includes(req.session.user.role)) return res.status(403).send('권한이 없습니다.');
-    const { employee_id, pattern_id, start_date, end_date, type, extra_start, extra_end } = req.body;
+    const { employee_id, pattern_id, start_date, end_date, type, extra_start, extra_end, rest_time } = req.body;
     
     // 연장(extra) 또는 대체(substitute) 근무는 'pending' 상태로 생성
     const status = (type === 'extra' || type === 'substitute') ? 'pending' : 'approved';
 
-    db.run(`INSERT INTO employee_schedules (employee_id, pattern_id, start_date, end_date, type, status, extra_start, extra_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [employee_id, pattern_id, start_date, end_date, type || 'normal', status, extra_start || null, extra_end || null], (err) => {
+    db.run(`INSERT INTO employee_schedules (employee_id, pattern_id, start_date, end_date, type, status, extra_start, extra_end, rest_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [employee_id, pattern_id, start_date, end_date, type || 'normal', status, extra_start || null, extra_end || null, rest_time || 0], (err) => {
             res.json({ success: !err, message: err ? err.message : "" });
         });
 });
@@ -257,7 +257,7 @@ app.get('/api/admin/approvals', isAuthenticated, (req, res) => {
     
     const query = `
         SELECT es.*, e.name as employee_name, wp.pattern_name, s.name as site_name, 
-               wp.start_time as p_start, wp.end_time as p_end
+               wp.start_time as p_start, wp.end_time as p_end, wp.rest_time as p_rest
         FROM employee_schedules es
         JOIN employees e ON es.employee_id = e.id
         JOIN work_patterns wp ON es.pattern_id = wp.id
@@ -294,8 +294,8 @@ app.get('/api/admin/schedule-status-data', isAuthenticated, (req, res) => {
 // [관리자] 승인/거절 처리
 app.post('/api/admin/approvals/process', isAuthenticated, (req, res) => {
     if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false, message: "권한이 없습니다." });
-    const { id, status } = req.body; // status: 'approved' or 'rejected'
-    db.run(`UPDATE employee_schedules SET status = ? WHERE id = ?`, [status, id], (err) => {
+    const { id, status, reason } = req.body; // status: 'approved' or 'rejected'
+    db.run(`UPDATE employee_schedules SET status = ?, rejection_reason = ? WHERE id = ?`, [status, reason || null, id], (err) => {
         if (err) return res.json({ success: false, message: err.message });
         res.json({ success: true });
     });

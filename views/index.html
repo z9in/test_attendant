@@ -132,6 +132,23 @@
             border: 2px solid #fb7185 !important;
             border-radius: 4px;
         }
+        /* 달력 요약 표시 스타일 */
+        .cal-day-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 2px; /* Small gap between items */
+            margin-top: 2px;
+        }
+        .schedule-summary-item {
+            font-size: 0.65rem; /* Even smaller font for summary */
+            line-height: 1.2;
+            white-space: nowrap; /* Prevent wrapping if possible */
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .schedule-summary-item.pending { color: #2563eb; } /* Blue */
+        .schedule-summary-item.approved { color: #333; } /* Black */
+        .schedule-summary-item.rejected { color: #dc2626; } /* Red */
         .badge { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-extra { background: #fef3c7; color: #92400e; }
         .badge-sub { background: #dcfce7; color: #166534; }
@@ -363,6 +380,7 @@
                             <th>현장</th>
                             <th>유형</th>
                             <th>신청 시간</th>
+                        <th style="width: 180px;">승인 시 예상 시간</th>
                             <th>관리</th>
                         </tr>
                     </thead>
@@ -858,6 +876,9 @@
             const siteId = document.getElementById('sel-site').value;
             const patterns = allPatterns.filter(p => p.site_id == siteId);
             
+            // 해당 현장에 소속된 근무자만 필터링
+            const siteUsers = allUsers.filter(u => u.site_id == siteId);
+
             // 현재 날짜의 배정 데이터 가져오기
             const res = await fetch('/api/admin/schedules');
             const schedules = await res.json();
@@ -873,9 +894,12 @@
                         </div>
                         <div id="roster-list-${p.id}" style="margin-bottom:10px;">
                             ${assigned.map(s => `
-                                <div style="display:flex; justify-content:space-between; font-size:0.9rem; padding:4px 0; border-bottom:1px dashed #eee;">
-                                    <span>👤 ${s.employee_name}</span>
-                                    <span style="color:#ef4444; cursor:pointer;" onclick="deleteSchedule(${s.id})">✕</span>
+                                <div style="display:flex; flex-direction:column; font-size:0.9rem; padding:4px 0; border-bottom:1px dashed #eee;">
+                                    <div style="display:flex; justify-content:space-between;">
+                                        <span style="${s.status === 'rejected' ? 'text-decoration: line-through; color: #9ca3af;' : ''}">👤 ${s.employee_name} ${s.status === 'pending' ? '<span class="badge badge-pending">대기</span>' : s.status === 'rejected' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">거절</span>' : ''}</span>
+                                        <span style="color:#ef4444; cursor:pointer;" onclick="deleteSchedule(${s.id})">✕</span>
+                                    </div>
+                                    ${s.rejection_reason ? `<div style="font-size:0.75rem; color:#ef4444; margin-top:2px;">🚩 사유: ${s.rejection_reason}</div>` : ''}
                                 </div>
                             `).join('') || '<p style="font-size:0.8rem; color:#9ca3af;">배정 인원 없음</p>'}
                         </div>
@@ -888,14 +912,15 @@
                                     <option value="substitute">대체 근무 (승인 필요)</option>
                                 </select>
                             </div>
-                            <div id="extra-time-box-${p.id}" style="display:none; gap:5px; margin-bottom:8px;">
-                                <input type="time" id="ex-start-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;">
-                                <input type="time" id="ex-end-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;">
+                            <div id="extra-time-box-${p.id}" style="display:none; flex-direction:column; gap:8px; margin-bottom:8px;">
+                                <div style="display:flex; gap:5px;"><input type="time" id="ex-start-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;"><input type="time" id="ex-end-${p.id}" style="flex:1; padding:4px; font-size:0.8rem;"></div>
+                                <input type="number" id="ex-rest-${p.id}" placeholder="휴게시간(h)" style="padding:4px; font-size:0.8rem;">
                             </div>
                         </div>
                         <div style="display:flex; gap:5px;">
                             <select id="add-user-${p.id}" style="flex:1; padding:5px; font-size:0.85rem;">
-                                ${allUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
+                                <option value="">근무자 선택</option>
+                                ${siteUsers.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}
                             </select>
                             <button onclick="assignToPattern(${p.id})" style="padding:5px 10px; font-size:0.8rem;">추가</button>
                         </div>
@@ -920,6 +945,7 @@
             const type = document.getElementById(`type-${patternId}`).value;
             const exStart = document.getElementById(`ex-start-${patternId}`).value;
             const exEnd = document.getElementById(`ex-end-${patternId}`).value;
+            const exRest = document.getElementById(`ex-rest-${patternId}`).value;
 
             if ((type === 'extra' || type === 'substitute') && (!exStart || !exEnd)) {
                 alert('연장/대체 근무의 시간을 입력해주세요.');
@@ -937,7 +963,8 @@
                         end_date: selectedDate,
                         type: type,
                         extra_start: exStart,
-                        extra_end: exEnd
+                        extra_end: exEnd,
+                        rest_time: exRest
                     })
                 });
                 
@@ -1026,11 +1053,56 @@
                     return dateStr >= start && dateStr <= end && s.site_id == currentSiteId;
                 });
                 
-                if (dailySchedules.length > 0) {
-                    const tag = document.createElement('div');
-                    tag.className = 'dot-indicator';
-                    tag.innerText = `👥 ${dailySchedules.length}`;
-                    div.appendChild(tag);
+                if (dailySchedules.length > 0) { // 스케줄이 있는 경우에만 요약 표시
+                    let normalCount = 0;
+                    let extraPendingCount = 0;
+                    let extraApprovedCount = 0;
+                    let extraRejectedCount = 0;
+                    let substitutePendingCount = 0;
+                    let substituteApprovedCount = 0;
+                    let substituteRejectedCount = 0;
+
+                    dailySchedules.forEach(s => {
+                        if (s.type === 'normal') {
+                            normalCount++;
+                        } else if (s.type === 'extra') {
+                            if (s.status === 'pending') extraPendingCount++;
+                            else if (s.status === 'approved') extraApprovedCount++;
+                            else if (s.status === 'rejected') extraRejectedCount++;
+                        } else if (s.type === 'substitute') {
+                            if (s.status === 'pending') substitutePendingCount++;
+                            else if (s.status === 'approved') substituteApprovedCount++;
+                            else if (s.status === 'rejected') substituteRejectedCount++;
+                        }
+                    });
+
+                    let summaryHtml = '';
+                    if (normalCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item">일반 (${normalCount}건)</div>`;
+                    }
+                    if (extraPendingCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item pending">연장 (${extraPendingCount}건)</div>`;
+                    }
+                    if (extraApprovedCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item approved">연장 (${extraApprovedCount}건)</div>`;
+                    }
+                    if (extraRejectedCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item rejected">연장 (${extraRejectedCount}건)</div>`;
+                    }
+                    if (substitutePendingCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item pending">대체 (${substitutePendingCount}건)</div>`;
+                    }
+                    if (substituteApprovedCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item approved">대체 (${substituteApprovedCount}건)</div>`;
+                    }
+                    if (substituteRejectedCount > 0) {
+                        summaryHtml += `<div class="schedule-summary-item rejected">대체 (${substituteRejectedCount}건)</div>`;
+                    }
+
+                    const summaryDiv = document.createElement('div');
+                    summaryDiv.className = 'cal-day-summary';
+                    summaryDiv.innerHTML = summaryHtml;
+                    div.appendChild(summaryDiv);
                 }
                 area.appendChild(div);
             }
@@ -1234,28 +1306,70 @@
         // [관리자] 승인 페이지 로드
         async function loadApprovalPage() {
             switchPage('admin-approval');
-            const res = await fetch('/api/admin/approvals');
-            const list = await res.json();
+            const [appRes, schedRes] = await Promise.all([
+                fetch('/api/admin/approvals'),
+                fetch('/api/admin/schedules')
+            ]);
+            const list = await appRes.json();
+            const allApprovedSchedules = await schedRes.json();
             const tbody = document.querySelector('#approval-table tbody');
             
             if(list.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td></tr>';
                 return;
             }
+
+            const getDuration = (start, end, rest) => {
+                const [sH, sM] = start.split(':').map(Number);
+                const [eH, eM] = end.split(':').map(Number);
+                let diff = (eH * 60 + eM) - (sH * 60 + sM);
+                if (diff < 0) diff += 1440;
+                return (diff / 60) - (Number(rest) || 0);
+            };
 
             tbody.innerHTML = list.map(a => {
                 const typeName = a.type === 'extra' ? '연장' : '대체';
                 const timeStr = a.extra_start ? `${a.extra_start} ~ ${a.extra_end}` : `${a.p_start} ~ ${a.p_end}`;
+                const restVal = a.extra_start ? (a.rest_time || 0) : (a.p_rest || 0);
+                
+                // 예상 시간 계산 (주간/월간)
+                const weeks = getWeeksOfMonth(a.start_date.substring(0, 7));
+                const currentWeek = weeks.find(w => a.start_date >= w.start && a.start_date <= w.end);
+                
+                const empSchedules = allApprovedSchedules.filter(s => s.employee_id === a.employee_id && s.status === 'approved');
+                
+                let weekCur = 0, monthCur = 0;
+                empSchedules.forEach(s => {
+                    const dur = getDuration(s.extra_start || s.start_time, s.extra_end || s.end_time, s.rest_time);
+                    if (s.start_date >= currentWeek.start && s.start_date <= currentWeek.end) weekCur += dur;
+                    if (s.start_date.startsWith(a.start_date.substring(0, 7))) monthCur += dur;
+                });
+
+                const newDur = getDuration(a.extra_start || a.p_start, a.extra_end || a.p_end, restVal);
+                const weekNext = weekCur + newDur;
+                const monthNext = monthCur + newDur;
+
                 return `
                     <tr>
                         <td>${a.start_date}</td>
                         <td>${a.employee_name}</td>
                         <td>${a.site_name}</td>
                         <td><span class="badge ${a.type==='extra'?'badge-extra':'badge-sub'}">${typeName}</span></td>
-                        <td>${timeStr}</td>
                         <td>
-                            <button onclick="processApproval(${a.id}, 'approved')" style="padding:4px 8px; font-size:0.75rem; background:#10b981;">승인</button>
-                            <button onclick="processApproval(${a.id}, 'rejected')" style="padding:4px 8px; font-size:0.75rem; background:#ef4444;">거절</button>
+                            ${timeStr}<br><small style="color:#6b7280;">휴게 ${restVal}h</small>
+                        </td>
+                        <td>
+                            <div style="font-size:0.8rem; line-height:1.4;">
+                                주: ${weekCur.toFixed(1)}h → <b style="color:${weekNext > 52 ? '#ef4444' : '#10b981'}">${weekNext.toFixed(1)}h</b><br>
+                                월: ${monthCur.toFixed(1)}h → <b>${monthNext.toFixed(1)}h</b>
+                            </div>
+                        </td>
+                        <td>
+                            <div style="display:flex; flex-direction:column; gap:5px;">
+                                <button onclick="processApproval(${a.id}, 'approved')" style="padding:6px; font-size:0.75rem; background:#10b981;">승인</button>
+                                <input type="text" id="rej-reason-${a.id}" placeholder="거절 사유 입력" style="font-size:0.7rem; padding:4px;">
+                                <button onclick="processApproval(${a.id}, 'rejected')" style="padding:6px; font-size:0.75rem; background:#ef4444;">거절</button>
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1264,12 +1378,19 @@
 
         async function processApproval(id, status) {
             const action = status === 'approved' ? '승인' : '거절';
+            const reason = document.getElementById(`rej-reason-${id}`)?.value;
+
+            if (status === 'rejected' && !reason) {
+                alert('거절 시 사유를 반드시 입력해주세요.');
+                return;
+            }
+
             if(!confirm(`해당 신청을 ${action}하시겠습니까?`)) return;
 
             const res = await fetch('/api/admin/approvals/process', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, status })
+                body: JSON.stringify({ id, status, reason })
             });
             const result = await res.json();
             if(result.success) {
