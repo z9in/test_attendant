@@ -9,7 +9,9 @@ const app = express();
 app.engine('html', require('ejs').renderFile);
 app.set('view engine', 'html');
 
+app.use(express.static('public')); // CSS, JS 등 정적 파일을 위한 폴더 설정
 app.use(bodyParser.json());
+app.use(express.urlencoded({ extended: true })); // 폼 데이터 처리를 위한 설정 추가
 
 // 세션 설정
 app.use(session({
@@ -65,14 +67,16 @@ app.get('/api/user/me', isAuthenticated, (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const query = `
         SELECT e.name, e.department, e.position, e.role, e.site_id as managed_site_id, ms.name as managed_site_name,
-               s.name as site_name, s.latitude, s.longitude, wp.start_time, wp.end_time, wp.pattern_name
+               s.name as site_name, s.latitude, s.longitude, wp.start_time, wp.end_time, wp.pattern_name,
+               al.check_in_time, al.check_out_time, al.status as attendance_status
         FROM employees e
         LEFT JOIN sites ms ON e.site_id = ms.id
         LEFT JOIN employee_schedules es ON e.id = es.employee_id AND ? BETWEEN es.start_date AND IFNULL(es.end_date, '9999-12-31')
         LEFT JOIN work_patterns wp ON es.pattern_id = wp.id
         LEFT JOIN sites s ON wp.site_id = s.id
+        LEFT JOIN attendance_logs al ON e.id = al.employee_id AND al.work_date = ?
         WHERE e.id = ?`;
-    db.get(query, [today, req.session.user.id], (err, row) => {
+    db.get(query, [today, today, req.session.user.id], (err, row) => {
         if (err) {
             console.error("Error fetching user info:", err);
             return res.status(500).json({ error: err.message });
@@ -125,8 +129,8 @@ app.post('/api/admin/sites', (req, res) => {
             let completed = 0;
             let hasError = false;
             patterns.forEach(p => {
-                db.run(`INSERT INTO work_patterns (site_id, pattern_name, start_time, end_time) VALUES (?, ?, ?, ?)`,
-                    [siteId, p.name, p.start, p.end], (err) => {
+                db.run(`INSERT INTO work_patterns (site_id, pattern_name, start_time, end_time, rest_time) VALUES (?, ?, ?, ?, ?)`, // DB 컬럼명과 일치
+                    [siteId, p.name, p.start_time, p.end_time, p.rest_time || 0], (err) => { // 클라이언트에서 넘어온 속성명과 일치
                         if (hasError) return;
                         if (err) {
                             hasError = true;
@@ -186,12 +190,32 @@ app.get('/api/admin/users', (req, res) => {
 });
 
 app.post('/api/admin/users', (req, res) => {
-    if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false, message: "권한이 없습니다." }); // Only super_admin can add users
-    const { id, username, password, name, department, position, site_id, role } = req.body;
-    db.run(`INSERT INTO employees (id, username, password, name, department, position, site_id, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [id, username, password, name, department, position, site_id, role], (err) => {
-            res.json({ success: !err, message: err ? err.message : "" });
-        });
+    if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false, message: "권한이 없습니다." });
+    const { id, username, password, name, department, position, site_id, role, isEdit } = req.body;
+
+    if (isEdit) {
+        // 근무자 정보 수정
+        db.run(`UPDATE employees SET username = ?, password = ?, name = ?, department = ?, position = ?, site_id = ?, role = ? WHERE id = ?`,
+            [username, password, name, department, position, site_id, role, id], (err) => {
+                res.json({ success: !err, message: err ? err.message : "" });
+            });
+    } else {
+        // 신규 근무자 등록
+        db.run(`INSERT INTO employees (id, username, password, name, department, position, site_id, role) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [id, username, password, name, department, position, site_id, role], (err) => {
+                res.json({ success: !err, message: err ? err.message : "" });
+            });
+    }
+});
+
+// [관리자] 근무자 삭제
+app.post('/api/admin/users/delete', (req, res) => {
+    if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false, message: "권한이 없습니다." });
+    const { id } = req.body;
+    db.run(`DELETE FROM employees WHERE id = ?`, [id], (err) => {
+        if (err) return res.json({ success: false, message: err.message });
+        res.json({ success: true });
+    });
 });
 
 // [관리자] 근무 편성 관리
@@ -246,6 +270,27 @@ app.get('/api/admin/approvals', isAuthenticated, (req, res) => {
     });
 });
 
+// [관리자] 근무스케줄 현황 데이터 (특정 현장, 특정 월 기준)
+app.get('/api/admin/schedule-status-data', isAuthenticated, (req, res) => {
+    if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false });
+    const { site_id, month } = req.query; // site_id, month: YYYY-MM
+
+    // 해당 월의 앞뒤 주차 계산을 위해 넉넉하게 데이터를 가져옴 (전달 말일 ~ 다음달 초일 포함)
+    const query = `
+        SELECT es.*, e.name as employee_name, wp.pattern_name, wp.start_time, wp.end_time, wp.rest_time
+        FROM employee_schedules es
+        JOIN employees e ON es.employee_id = e.id
+        JOIN work_patterns wp ON es.pattern_id = wp.id
+        WHERE wp.site_id = ? AND (es.start_date LIKE ? OR es.start_date BETWEEN date(?, '-7 days') AND date(?, '+37 days'))
+        AND es.status = 'approved'
+    `;
+    const monthPattern = `${month}%`;
+    db.all(query, [site_id, monthPattern, month + '-01', month + '-01'], (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
 // [관리자] 승인/거절 처리
 app.post('/api/admin/approvals/process', isAuthenticated, (req, res) => {
     if (req.session.user.role !== 'super_admin') return res.status(403).json({ success: false, message: "권한이 없습니다." });
@@ -272,7 +317,7 @@ app.get('/api/admin/schedules', isAuthenticated, (req, res) => {
     if (!['super_admin', 'site_admin'].includes(role)) return res.status(403).send('권한이 없습니다.');
 
     let query = `
-        SELECT es.*, e.name as employee_name, wp.pattern_name, s.name as site_name, s.id as site_id
+        SELECT es.*, e.name as employee_name, wp.pattern_name, wp.start_time, wp.end_time, wp.rest_time, s.name as site_name, s.id as site_id
         FROM employee_schedules es
         JOIN employees e ON es.employee_id = e.id
         JOIN work_patterns wp ON es.pattern_id = wp.id
@@ -314,7 +359,7 @@ app.get('/api/admin/attendance/details', isAuthenticated, (req, res) => {
     const targetSiteId = role === 'site_admin' ? sessionSiteId : site_id;
 
     const query = `
-        SELECT al.*, e.name as employee_name, wp.pattern_name
+        SELECT al.*, e.name as employee_name, wp.pattern_name, wp.start_time, wp.end_time
         FROM attendance_logs al
         JOIN employees e ON al.employee_id = e.id
         LEFT JOIN employee_schedules es ON al.employee_id = es.employee_id AND al.work_date BETWEEN es.start_date AND IFNULL(es.end_date, '9999-12-31')
@@ -378,7 +423,7 @@ app.post('/api/attendance', (req, res) => {
             if (!row) return res.json({ success: false, message: "오늘 배정된 근무지가 없습니다." });
 
             const dist = getDistance(lat, lng, row.latitude, row.longitude);
-            if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
+            if (dist > 50) return res.json({ success: false, message: `현장 반경 50을 벗어났습니다. (현재: ${Math.round(dist)})` });
 
             // 출근 시간 10분 전 체크
             const [cHour, cMin] = currentTime.split(':').map(Number);
@@ -407,7 +452,7 @@ app.post('/api/attendance', (req, res) => {
             if (!row) return res.json({ success: false, message: "진행 중인 근무(출근 기록)를 찾을 수 없습니다." });
 
             const dist = getDistance(lat, lng, row.latitude, row.longitude);
-            if (dist > 50) return res.json({ success: false, message: `현장 반경 50m를 벗어났습니다. (현재: ${Math.round(dist)}m)` });
+            if (dist > 50) return res.json({ success: false, message: `현장 반경 50을 벗어났습니다. (현재: ${Math.round(dist)})` });
 
             // 퇴근 시간 30분 초과 체크 및 연장 근로 확인
             const schedQuery = `
@@ -443,7 +488,7 @@ app.post('/api/attendance', (req, res) => {
 
 // [사용자] 내 스케줄 조회
 app.get('/api/user/schedule', isAuthenticated, (req, res) => {
-    db.all(`SELECT es.*, wp.pattern_name, s.name as site_name 
+    db.all(`SELECT es.*, wp.pattern_name, wp.start_time, wp.end_time, s.name as site_name 
             FROM employee_schedules es 
             JOIN work_patterns wp ON es.pattern_id = wp.id
             JOIN sites s ON wp.site_id = s.id

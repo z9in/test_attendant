@@ -18,6 +18,7 @@ db.serialize(() => {
         pattern_name TEXT NOT NULL,
         start_time TEXT NOT NULL,
         end_time TEXT NOT NULL,
+        rest_time INTEGER DEFAULT 0,
         FOREIGN KEY(site_id) REFERENCES sites(id)
     )`);
 
@@ -68,7 +69,8 @@ db.serialize(() => {
         "ALTER TABLE employee_schedules ADD COLUMN type TEXT DEFAULT 'normal'",
         "ALTER TABLE employee_schedules ADD COLUMN status TEXT DEFAULT 'approved'",
         "ALTER TABLE employee_schedules ADD COLUMN extra_start TEXT",
-        "ALTER TABLE employee_schedules ADD COLUMN extra_end TEXT"
+        "ALTER TABLE employee_schedules ADD COLUMN extra_end TEXT",
+        "ALTER TABLE work_patterns ADD COLUMN rest_time INTEGER DEFAULT 0"
     ];
     columns.forEach(sql => db.run(sql, (err) => { /* 컬럼 이미 존재 시 에러 무시 */ }));
 

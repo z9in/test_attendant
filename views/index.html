@@ -3,6 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/style.css">
+
     <title>근태 관리 시스템 프로토타입</title>
     <style>
         :root {
@@ -12,11 +14,35 @@
             --text-color: #374151;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-        body { display: flex; height: 100vh; background-color: var(--bg-color); color: var(--text-color); }
+        body { display: block; background-color: var(--bg-color); color: var(--text-color); min-height: 100vh; margin-top: 56px; }
+
+        /* 모바일 상단 헤더 */
+        .mobile-header { 
+            display: flex; 
+            align-items: center; 
+            background: var(--sidebar-color); 
+            color: white; 
+            padding: 10px 15px; 
+            position: fixed; 
+            top: 0; 
+            left: 0;
+            width: 100%;
+            z-index: 50; 
+            justify-content: space-between; 
+            height: 56px;
+        }
+        .mobile-header h2 { font-size: 1rem; color: #a5b4fc; }
+        .hamburger { background: none; border: none; color: white; font-size: 1.5rem; cursor: pointer; padding: 5px; }
         
         /* 사이드바 스타일 */
-        aside { width: 260px; background-color: var(--sidebar-color); color: white; padding: 20px; display: flex; flex-direction: column; gap: 20px; }
-        aside h2 { font-size: 1.2rem; padding-bottom: 10px; border-bottom: 1px solid #374151; color: #a5b4fc; }
+        aside { 
+            position: fixed; left: -260px; top: 0; width: 260px; height: 100vh; 
+            z-index: 1001; background-color: var(--sidebar-color); color: white; 
+            padding: 20px; display: flex; flex-direction: column; gap: 15px; 
+            transition: left 0.3s ease; box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+        }
+        aside.open { left: 0; }
+        aside h2 { font-size: 1.1rem; padding-bottom: 10px; border-bottom: 1px solid #374151; color: #a5b4fc; }
         aside ul { list-style: none; display: flex; flex-direction: column; gap: 8px; }
         aside li { padding: 12px; rounded: 6px; cursor: pointer; border-radius: 6px; transition: 0.2s; font-size: 0.95rem; }
         aside li:hover { background-color: #374151; }
@@ -24,8 +50,12 @@
         .menu-group { margin-bottom: 15px; }
         .menu-title { font-size: 0.8rem; color: #9ca3af; text-transform: uppercase; margin-bottom: 5px; padding-left: 5px; }
 
+        /* 모바일 오버레이 */
+        .overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; }
+        .overlay.active { display: block; }
+
         /* 메인 콘텐츠 영역 */
-        main { flex: 1; padding: 30px; overflow-y: auto; }
+        main { padding: 15px; }
         .page { display: none; }
         .page.active { display: block; }
         h1 { margin-bottom: 20px; font-size: 1.75rem; color: #111827; }
@@ -44,7 +74,7 @@
         .form-group { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 600px; display: flex; flex-direction: column; gap: 15px; }
         .form-row { display: flex; flex-direction: column; gap: 5px; }
         label { font-size: 0.9rem; font-weight: 600; }
-        input, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 0.95rem; }
         button { background-color: var(--primary-color); color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; transition: 0.2s; }
         button:hover { background-color: #4338ca; }
 
@@ -53,6 +83,13 @@
         .cal-day { border: 1px solid #e5e7eb; min-height: 100px; padding: 8px; border-radius: 6px; display: flex; flex-direction: column; gap: 5px; }
         .cal-header { font-weight: bold; background: #f3f4f6; text-align: center; padding: 10px 0; border-radius: 6px; }
         .schedule-tag { background: #e0e7ff; color: #4338ca; font-size: 0.75rem; padding: 4px; border-radius: 4px; font-weight: 500; }
+
+        /* 캘린더 모바일 스크롤 처리 */
+        .calendar-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
 
         /* 출퇴근 버튼 컴포넌트 */
         .attendance-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: center; max-width: 450px; margin: 0 auto; }
@@ -90,14 +127,86 @@
             border-radius: 8px;
             margin-bottom: 10px;
         }
+        .highlight-danger-range {
+            background-color: #ffe4e6 !important; /* 핑크색 음영 */
+            border: 2px solid #fb7185 !important;
+            border-radius: 4px;
+        }
         .badge { font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
         .badge-extra { background: #fef3c7; color: #92400e; }
         .badge-sub { background: #dcfce7; color: #166534; }
         .badge-pending { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
         .log-tag { font-size: 0.7rem; padding: 2px; border-radius: 3px; margin-top: 2px; display: block; border: 1px solid #ddd; }
+
+        /* 반응형 유틸리티 */
+        .responsive-flex { display: flex; flex-direction: column; gap: 15px; }
+        @media (min-width: 768px) {
+            .responsive-flex { flex-direction: row; }
+        }
+
+        /* 데스크탑 레이아웃 (768px 이상) */
+        @media (min-width: 768px) {
+            .mobile-header { display: none; }
+            .overlay { display: none !important; }
+            body { display: flex; overflow: hidden; height: 100vh; margin-top: 0; }
+            aside { position: static; left: 0; width: 260px; height: 100vh; padding: 20px; transition: none; box-shadow: none; display: flex !important; }
+            main { flex: 1; padding: 30px; overflow-y: auto; }
+        }
+
+        /* 모바일 테이블 최적화: 375px 화면에서도 가로 스크롤 제거 */
+        @media (max-width: 767px) {
+            table { 
+                min-width: auto !important; 
+                font-size: 0.7rem; 
+                table-layout: fixed; /* 테이블 레이아웃 고정 */
+            }
+            th, td { 
+                padding: 8px 2px !important; 
+                word-break: break-all; /* 긴 단어 강제 줄바꿈 */
+                overflow: hidden;
+            }
+            .mobile-hide { display: none; }
+            /* 주소 컬럼까지 숨겨서 공간 확보 */
+            .mobile-hide-address { display: none; }
+            .btn-table { padding: 4px 5px !important; font-size: 0.65rem !important; width: 45%; display: inline-block; margin: 0 !important; }
+            
+            /* 달력 모바일 최적화: 가로 스크롤 제거 */
+            .calendar { 
+                min-width: auto !important; 
+                gap: 2px !important; 
+                padding: 5px !important; 
+            }
+            .cal-day { 
+                min-height: 60px !important; 
+                padding: 4px 2px !important; 
+            }
+            .cal-header { padding: 5px 0 !important; font-size: 0.7rem; }
+            .day-num { font-size: 0.7rem; }
+            .schedule-tag { font-size: 0.6rem !important; padding: 1px 2px !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+            #admin-editor-panel { flex: none !important; width: 100% !important; }
+            .dot-indicator { font-size: 0.6rem !important; padding: 1px 3px !important; }
+        }
+
+        /* 모바일 테이블 대응 */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            margin-top: 15px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* 달력 근무 표시 요약 배지 */
+        .dot-indicator { background: #e0e7ff; color: #4338ca; font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; text-align: center; margin-top: 2px; }
     </style>
 </head>
 <body>
+
+    <div class="mobile-header">
+        <button class="hamburger" onclick="toggleSidebar()">☰</button>
+        <h2>근태 관리 시스템</h2>
+        <div style="width: 30px;"></div> <!-- 중앙 정렬을 위한 여백 -->
+    </div>
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
     <aside id="sidebar" style="display: none;">
         <h2>근태 관리 시스템</h2>
@@ -109,6 +218,7 @@
                 <li class="menu-item super-only" id="menu-site" onclick="loadSitePage()">🏗️ 운영 현장 관리</li>
                 <li class="menu-item super-only" id="menu-user" onclick="loadUserPage()">👥 근무자 관리</li>
                 <li class="menu-item super-only" id="menu-approval" onclick="loadApprovalPage()">✅ 연장/대체 승인</li>
+                <li class="menu-item super-only" id="menu-schedule-status" onclick="loadScheduleStatusPage()">📅 근무스케줄 현황</li>
                 <li class="menu-item admin-accessible" id="menu-attendance-report" onclick="loadAttendanceReport()">📑 근태 현황 확인</li>
                 <li class="menu-item admin-accessible" id="menu-schedule" onclick="loadScheduleData()">📅 근무 편성 관리</li>
             </ul>
@@ -125,12 +235,67 @@
     </aside>
 
     <main>
+        <!-- 사용자 대시보드 (일반 사용자용 첫 화면) -->
+        <section id="user-dashboard" class="page">
+            <h1>👋 안녕하세요, <span id="dash-user-name"></span>님</h1>
+            <div class="card" style="border-left: 5px solid var(--primary-color);">
+                <h3>오늘의 근무 요약</h3>
+                <div id="dash-today-info">
+                    <p style="margin-bottom:10px;">📅 <span id="dash-date">-</span></p>
+                    <div class="responsive-flex" style="gap:10px;">
+                        <div style="flex:1; background:#f9fafb; padding:10px; border-radius:8px;">
+                            <small style="color:#6b7280;">출근 상태</small>
+                            <div id="dash-in-status" style="font-weight:bold; margin-top:5px;">-</div>
+                        </div>
+                        <div style="flex:1; background:#f9fafb; padding:10px; border-radius:8px;">
+                            <small style="color:#6b7280;">퇴근 상태</small>
+                            <div id="dash-out-status" style="font-weight:bold; margin-top:5px;">-</div>
+                        </div>
+                    </div>
+                    <p style="margin-top:15px; font-size:0.9rem; color:#4f46e5; cursor:pointer; font-weight:bold;" onclick="loadAttendancePage()">출퇴근 등록하러 가기 →</p>
+                </div>
+            </div>
+        </section>
+
         <section id="admin-total" class="page active">
             <h1>📊 총괄 대시보드</h1>
             <div class="grid-3">
-                <div class="card"><h3>금일 출근 대상자</h3><div class="value" id="stat-target">0 명</div></div>
-                <div class="card"><h3>현재 출근 완료</h3><div class="value" id="stat-done" style="color: #10b981;">0 명</div></div>
-                <div class="card"><h3>미출근 / 지각</h3><div class="value" id="stat-late" style="color: #ef4444;">0 명</div></div>
+                <div class="card"><h3>금일 출근 대상자</h3><div class="value" id="stat-target">0</div></div>
+                <div class="card"><h3>현재 출근 완료</h3><div class="value" id="stat-done" style="color: #10b981;">0</div></div>
+                <div class="card"><h3>미출근 / 지각</h3><div class="value" id="stat-late" style="color: #ef4444;">0</div></div>
+            </div>
+        </section>
+
+        <section id="admin-schedule-status" class="page">
+            <h1>📅 근무스케줄 현황</h1>
+            <div class="form-group" style="max-width: 100%; margin-bottom: 20px; flex-direction: row; align-items: center; gap: 20px;">
+                <div>
+                    <label>조회 월 선택</label>
+                    <input type="month" id="status-month" onchange="loadScheduleStatusPage()">
+                </div>
+            </div>
+
+            <div id="status-site-list" class="grid-3" style="margin-bottom: 30px;">
+                <!-- 현장 리스트 카드 동적 생성 -->
+            </div>
+
+            <div id="status-detail-area" style="display: none;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 id="status-site-title">현장별 통계</h2>
+                    <button onclick="document.getElementById('status-detail-area').style.display='none'" style="background:#6b7280; width:auto; padding:5px 15px;">닫기</button>
+                </div>
+                <div class="table-responsive">
+                    <table id="status-employee-table">
+                        <thead>
+                            <tr>
+                                <th>성명</th>
+                                <th>월간 총 시간</th>
+                                <th>주차별 상세 (최대 주 52시간)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </section>
 
@@ -141,7 +306,7 @@
                 <input type="hidden" id="site-id">
                 <div class="form-row"><label>현장명</label><input type="text" id="site-name" required></div>
                 <div class="form-row"><label>현장 주소</label><input type="text" id="site-addr"></div>
-                <div class="form-row" style="flex-direction: row; gap: 10px;">
+                <div class="responsive-flex">
                     <div style="flex: 1; display:flex; flex-direction:column;"><label>위도</label><input type="number" step="any" id="site-lat" placeholder="37.x"></div>
                     <div style="flex: 1; display:flex; flex-direction:column;"><label>경도</label><input type="number" step="any" id="site-lng" placeholder="126.x"></div>
                 </div>
@@ -152,26 +317,36 @@
                     </div>
                     <div id="pattern-rows">
                         <div class="pattern-entry" style="border: 1px solid #eee; padding: 10px; border-radius: 6px; margin-bottom: 10px;">
-                            <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 주간조)" required></div>
-                            <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
+                            <div class="form-row" style="margin-bottom: 5px;"><input type="text" class="p-name" placeholder="패턴명 (예: 주간조)" required></div>
+                            <div class="responsive-flex">
                                 <input type="time" class="p-start" required style="flex:1;"> <input type="time" class="p-end" required style="flex:1;">
+                                <input type="number" class="p-rest" placeholder="휴게(h)" min="0" style="flex:0.5;">
                             </div>
                         </div>
                     </div>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div class="responsive-flex" style="gap: 10px;">
                     <button type="submit" id="site-submit-btn" style="flex: 1;">현장 및 패턴 저장하기</button>
                     <button type="button" id="site-cancel-btn" style="flex: 1; display:none; background:#6b7280;" onclick="resetSiteForm()">취소</button>
                 </div>
             </form>
 
             <h2 style="margin-top: 40px;">운영 중인 현장 목록</h2>
-            <table id="site-table">
-                <thead>
-                    <tr><th>ID</th><th>현장명</th><th>주소</th><th>위도/경도</th><th>근무 패턴</th><th>관리</th></tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+            <div class="table-responsive">
+                <table id="site-table">
+                    <thead>
+                        <tr>
+                            <th class="mobile-hide" style="width: 30px;">ID</th>
+                            <th style="width: 25%;">현장명</th>
+                            <th class="mobile-hide-address">주소</th>
+                            <th class="mobile-hide" style="width: 60px;">위도/경도</th>
+                            <th style="width: 45%;">근무 패턴</th>
+                            <th style="width: 30%;">관리</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
         </section>
 
         <section id="admin-approval" class="page">
@@ -179,23 +354,25 @@
             <div class="card" style="margin-bottom: 20px;">
                 <p>최고관리자 전용: 연장 및 대체 근무 신청 내역을 검토하고 승인합니다.</p>
             </div>
-            <table id="approval-table">
-                <thead>
-                    <tr>
-                        <th>일자</th>
-                        <th>근무자</th>
-                        <th>현장</th>
-                        <th>유형</th>
-                        <th>신청 시간</th>
-                        <th>관리</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td colspan="6" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="table-responsive">
+                <table id="approval-table">
+                    <thead>
+                        <tr>
+                            <th>일자</th>
+                            <th>근무자</th>
+                            <th>현장</th>
+                            <th>유형</th>
+                            <th>신청 시간</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="6" style="text-align:center; color:#9ca3af; padding:40px;">대기 중인 신청이 없습니다.</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </section>
 
         <section id="admin-attendance-report" class="page">
@@ -208,7 +385,7 @@
                 <button id="report-back-btn" style="display:none; background:#6b7280; width:auto; padding:8px 15px;" onclick="loadAttendanceReport()">← 현장 목록으로</button>
             </div>
             
-            <div id="report-container">
+            <div id="report-container" class="table-responsive" style="margin-top: 0;">
                 <table id="report-table">
                     <thead>
                         <tr id="report-th">
@@ -225,7 +402,8 @@
         <section id="admin-user" class="page">
             <h1>👥 근무자 관리</h1>
             <form class="form-group" id="user-form" style="max-width: 100%; margin-bottom: 30px;">
-                <h3>신규 근무자(사용자) 등록</h3>
+                <h3 id="user-form-title">신규 근무자(사용자) 등록</h3>
+                <input type="hidden" id="u-is-edit" value="false">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
                     <div class="form-row"><label>사번(아이디)</label><input type="number" id="u-id" placeholder="예: 2024001" required></div>
                     <div class="form-row"><label>로그인 ID</label><input type="text" id="u-username" placeholder="예: user01" required></div>
@@ -239,21 +417,26 @@
                         <option value="super_admin">최고 관리자</option>
                     </select></div>
                 </div>
-                <button type="submit" style="margin-top: 10px; align-self: flex-end; width: 150px;">근무자 등록</button>
+                <div class="responsive-flex" style="justify-content: flex-end; margin-top: 10px; gap: 10px;">
+                    <button type="button" id="user-cancel-btn" style="display:none; background:#6b7280; width: 120px;" onclick="resetUserForm()">취소</button>
+                    <button type="submit" id="user-submit-btn" style="width: 150px;">근무자 등록</button>
+                </div>
             </form>
             <h2>등록된 근무자 명단</h2>
-            <table id="user-table"><thead><tr><th>ID</th><th>성명</th><th>소속</th><th>직책</th></tr></thead><tbody></tbody></table>
+            <div class="table-responsive">
+                <table id="user-table"><thead><tr><th style="width:80px;">ID</th><th>성명</th><th>소속</th><th>직책</th><th style="width:120px;">관리</th></tr></thead><tbody></tbody></table>
+            </div>
         </section>
 
         <section id="admin-schedule" class="page">
             <h1>📅 근무 편성 관리</h1>
             <div class="form-group" style="max-width: 100%; margin-bottom: 20px;">
                 <h3>관리 현장 선택</h3>
-                <div style="max-width: 300px;"><select id="sel-site" onchange="onSiteChange()"></select></div>
+                <div style="max-width: 100%;"><select id="sel-site" onchange="onSiteChange()" style="width: 100%;"></select></div>
                 <h2 id="display-site-name" style="margin-top: 15px; color: var(--primary-color); border-bottom: 2px solid #e5e7eb; padding-bottom: 5px;"></h2>
             </div>
 
-            <div style="display: flex; gap: 20px; align-items: stretch;">
+            <div class="responsive-flex" style="align-items: stretch;">
                 <!-- 왼쪽: 달력 -->
                 <div style="flex: 1;">
                     <div class="form-group" style="max-width: 100%;">
@@ -264,12 +447,14 @@
                                 <button onclick="changeAdminMonth(1)" style="padding: 5px 10px; width: auto; background-color: #6b7280;">다음</button>
                             </div>
                         </div>
-                        <div id="admin-calendar-area" class="calendar"></div>
+                        <div class="calendar-wrapper">
+                            <div id="admin-calendar-area" class="calendar"></div>
+                        </div>
                     </div>
                 </div>
 
                 <!-- 오른쪽: 선택된 날짜의 로스터 상세 편집 -->
-                <div style="width: 350px; flex-shrink: 0;">
+                <div id="admin-editor-panel" style="flex: 0 0 350px;">
                     <div class="form-group" style="height: 100%; min-height: 400px;">
                         <h3 id="selected-date-view">날짜를 선택하세요</h3>
                         <div id="daily-roster-editor" style="margin-top: 15px;">
@@ -292,27 +477,44 @@
                     </div>
                 </div>
             </div>
-            <div id="calendar-area" class="calendar"></div>
+            <div class="calendar-wrapper">
+                <div id="calendar-area" class="calendar"></div>
+            </div>
+            <div id="user-schedule-detail" class="card" style="margin-top: 20px; display: none;">
+                <h3 id="user-selected-date" style="margin-bottom: 15px; border-bottom: 2px solid var(--primary-color); padding-bottom: 5px;"></h3>
+                <div id="user-detail-content"></div>
+            </div>
         </section>
 
         <section id="user-attendance" class="page">
             <h1>📍 출퇴근 등록</h1>
             <div class="attendance-box">
+                <div id="att-date-display" style="font-weight:bold; color:#6b7280; margin-bottom:10px;"></div>
                 <div class="gps-status" id="gps-msg">📡 GPS 확인 중...</div>
                 <h2 style="margin-bottom: 5px;" id="today-site">배정된 현장 없음</h2>
                 <p style="color: #6b7280; font-size: 0.95rem; margin-bottom: 20px;" id="today-pattern">패턴 정보를 불러오는 중...</p>
                 
                 <div style="font-size: 2.5rem; font-weight: bold; margin: 20px 0; color: #111827;" id="current-time">15:50:00</div>
                 
+                <div id="attendance-status-msg" style="margin-bottom: 20px; font-weight: bold; font-size: 0.9rem;"></div>
+
                 <div class="btn-group">
-                    <button class="btn-in" onclick="submitAttendance('in')">출근하기</button>
-                    <button class="btn-out" onclick="submitAttendance('out')">퇴근하기</button>
+                    <button id="btn-att-in" class="btn-in" onclick="submitAttendance('in')">출근하기</button>
+                    <button id="btn-att-out" class="btn-out" onclick="submitAttendance('out')">퇴근하기</button>
                 </div>
+                <button onclick="switchPage('user-dashboard')" style="background:#6b7280; margin-top:20px; width:100%;">대시보드로 돌아가기</button>
             </div>
         </section>
     </main>
 
     <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            sidebar.classList.toggle('open');
+            overlay.classList.toggle('active');
+        }
+
         function switchPage(pageId) {
             const pages = document.querySelectorAll('.page');
             pages.forEach(page => page.classList.remove('active'));
@@ -326,6 +528,11 @@
             if (currentEvt && currentEvt.currentTarget && currentEvt.currentTarget.classList) {
                 currentEvt.currentTarget.classList.add('active');
             }
+
+            // 모바일에서 페이지 이동 시 사이드바 닫기
+            if (window.innerWidth < 768) {
+                toggleSidebar();
+            }
         }
 
         let adminYear = new Date().getFullYear();
@@ -336,8 +543,12 @@
         let allUsers = [];
         let allSites = [];
         let selectedDate = null;
+        let selectedUserDate = null;
         let selectedPatternId = null;
+        let statusData = []; // 근무스케줄 현황용 임시 데이터
+        let dangerWeeks = {}; // 52시간 초과 주차 정보
         let currentUser = null;
+        let lastKnownPos = null; // 반응 속도 개선을 위한 마지막 위치 저장
 
         async function initApp() {
             const res = await fetch('/api/user/me');
@@ -352,8 +563,16 @@
             const monthStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
             document.getElementById('report-month').value = monthStr;
 
+            // 사용자 이름 설정
+            const dashUserName = document.getElementById('dash-user-name');
+            if (dashUserName) dashUserName.innerText = currentUser.name;
+            const dashDate = document.getElementById('dash-date');
+            if (dashDate) dashDate.innerText = now.toLocaleDateString();
+
             document.getElementById('me-name').innerText = currentUser.name;
-            document.getElementById('sidebar').style.display = 'flex';
+            
+            // display: none을 제거하여 CSS transition(left)이 작동하도록 함
+            document.getElementById('sidebar').style.display = '';
 
             if (currentUser.role === 'super_admin') {
                 document.getElementById('admin-menu-group').style.display = 'block';
@@ -367,8 +586,27 @@
                 switchPage('admin-schedule');
             } else {
                 // 일반 사용자
-                switchPage('user-attendance');
-                loadAttendancePage();
+                updateUserDashboard(currentUser);
+                switchPage('user-dashboard');
+            }
+        }
+
+        function updateUserDashboard(data) {
+            const inStatus = document.getElementById('dash-in-status');
+            const outStatus = document.getElementById('dash-out-status');
+            
+            if (data.check_in_time) {
+                const time = new Date(data.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                inStatus.innerHTML = `<span style="color:#10b981;">출근 완료 (${time})</span>`;
+            } else {
+                inStatus.innerHTML = `<span style="color:#6b7280;">출근 전</span>`;
+            }
+
+            if (data.check_out_time) {
+                const time = new Date(data.check_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                outStatus.innerHTML = `<span style="color:#ef4444;">퇴근 완료 (${time})</span>`;
+            } else {
+                outStatus.innerHTML = `<span style="color:#6b7280;">퇴근 전</span>`;
             }
         }
         async function loadDashboard() {
@@ -379,9 +617,178 @@
                 return;
             }
             const data = await res.json();
-            document.getElementById('stat-target').innerText = data.target + ' 명';
-            document.getElementById('stat-done').innerText = data.completed + ' 명';
-            document.getElementById('stat-late').innerText = data.late + ' 명';
+            document.getElementById('stat-target').innerText = data.target;
+            document.getElementById('stat-done').innerText = data.completed;
+            document.getElementById('stat-late').innerText = data.late;
+        }
+
+        // [관리자] 근무스케줄 현황 페이지 로드
+        async function loadScheduleStatusPage() {
+            switchPage('admin-schedule-status');
+            const month = document.getElementById('status-month').value || new Date().toISOString().substring(0, 7);
+            document.getElementById('status-month').value = month;
+            
+            const res = await fetch('/api/admin/sites');
+            const sites = await res.json();
+            const container = document.getElementById('status-site-list');
+            
+            container.innerHTML = sites.map(s => `
+                <div class="card" style="cursor:pointer; border-left: 5px solid var(--primary-color);" onclick="showSiteStatus(${s.id}, '${s.name}')">
+                    <h3>${s.name}</h3>
+                    <p style="font-size:0.85rem; color:#6b7280;">${s.address || '주소 정보 없음'}</p>
+                    <div style="margin-top:10px; font-size:0.8rem; color:var(--primary-color); font-weight:bold;">현황 보기 →</div>
+                </div>
+            `).join('');
+        }
+
+        async function showSiteStatus(siteId, siteName) {
+            const month = document.getElementById('status-month').value;
+            const res = await fetch(`/api/admin/schedule-status-data?site_id=${siteId}&month=${month}`);
+            statusData = await res.json();
+            
+            document.getElementById('status-site-title').innerText = `📍 ${siteName} (${month})`;
+            document.getElementById('status-detail-area').style.display = 'block';
+            
+            calculateAndRenderStatus(month);
+        }
+
+        function calculateAndRenderStatus(month) {
+            const employees = [...new Set(statusData.map(d => d.employee_id))];
+            const tbody = document.querySelector('#status-employee-table tbody');
+            tbody.innerHTML = '';
+            dangerWeeks = {};
+
+            // 날짜 계산 헬퍼
+            const getDuration = (start, end, rest) => {
+                const [sH, sM] = start.split(':').map(Number);
+                const [eH, eM] = end.split(':').map(Number);
+                let diff = (eH * 60 + eM) - (sH * 60 + sM);
+                if (diff < 0) diff += 1440; // 익일 퇴근 대응
+                return (diff / 60) - (Number(rest) || 0);
+            };
+
+            employees.forEach(empId => {
+                const empSchedules = statusData.filter(s => s.employee_id === empId);
+                const empName = empSchedules[0].employee_name;
+                
+                // 1. 월간 합계 (1일~말일)
+                let monthTotal = 0;
+                empSchedules.forEach(s => {
+                    if (s.start_date.startsWith(month)) {
+                        monthTotal += getDuration(s.start_time, s.end_time, s.rest_time);
+                    }
+                });
+
+                // 2. 주간 합계 (일~토 기준, 해당 월에 걸친 모든 주차)
+                const weeks = getWeeksOfMonth(month);
+                let weeklyHtml = '<div style="display:flex; flex-wrap:wrap; gap:10px;">';
+                
+                weeks.forEach((week, idx) => {
+                    let weekTotal = 0;
+                    empSchedules.forEach(s => {
+                        if (s.start_date >= week.start && s.start_date <= week.end) {
+                            weekTotal += getDuration(s.start_time, s.end_time, s.rest_time);
+                        }
+                    });
+
+                    const isDanger = weekTotal > 52;
+                    if (isDanger) {
+                        if (!dangerWeeks[empId]) dangerWeeks[empId] = [];
+                        dangerWeeks[empId].push({ start: week.start, end: week.end });
+                    }
+
+                    weeklyHtml += `
+                        <div style="padding:5px 10px; border-radius:4px; border:1px solid #e5e7eb; background:${isDanger ? '#fff1f2' : '#f9fafb'};">
+                            <small style="color:#6b7280; display:block;">${idx + 1}주차</small>
+                            <strong style="color:${isDanger ? '#ef4444' : 'inherit'};">${weekTotal.toFixed(1)}h</strong>
+                        </div>
+                    `;
+                });
+                weeklyHtml += '</div>';
+
+                const row = document.createElement('tr');
+                const isEmpDanger = dangerWeeks[empId] && dangerWeeks[empId].length > 0;
+                row.innerHTML = `
+                    <td style="font-weight:bold; cursor:pointer; color:${isEmpDanger ? '#ef4444' : 'inherit'}; text-decoration: underline;" onclick="showEmployeeDetailWithDanger(${empId}, '${empName}')">
+                        ${empName} ${isEmpDanger ? '⚠️' : ''}
+                    </td>
+                    <td>${monthTotal.toFixed(1)}h</td>
+                    <td>${weeklyHtml}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function getWeeksOfMonth(monthStr) {
+            const [year, month] = monthStr.split('-').map(Number);
+            const firstDay = new Date(year, month - 1, 1);
+            const lastDay = new Date(year, month, 0);
+            
+            const weeks = [];
+            let current = new Date(firstDay);
+            // 첫 주의 일요일 찾기
+            current.setDate(current.getDate() - current.getDay());
+
+            // 로컬 날짜를 YYYY-MM-DD 형식으로 변환하는 함수
+            const toLocalISOString = (date) => {
+                const y = date.getFullYear();
+                const m = String(date.getMonth() + 1).padStart(2, '0');
+                const d = String(date.getDate()).padStart(2, '0');
+                return `${y}-${m}-${d}`;
+            };
+
+            while (current <= lastDay) {
+                const weekStart = new Date(current);
+                const weekEnd = new Date(current);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                
+                weeks.push({
+                    start: toLocalISOString(weekStart),
+                    end: toLocalISOString(weekEnd)
+                });
+                current.setDate(current.getDate() + 7);
+            }
+            return weeks;
+        }
+
+        async function showEmployeeDetailWithDanger(empId, empName) {
+            // 기존 캘린더 페이지 활용 (관리자 편성 관리 모드와 유사하게 작동)
+            loadScheduleData(); // 일단 편성 페이지로 이동
+            
+            // 약간의 딜레이 후 캘린더 렌더링 시점에 음영 처리 개입
+            setTimeout(async () => {
+                const empDangerRanges = dangerWeeks[empId] || [];
+                
+                // 캘린더 렌더링 함수(renderAdminCalendar)를 래핑하거나 호출 후 수동 조작
+                const days = document.querySelectorAll('#admin-calendar-area .cal-day');
+                days.forEach(dayDiv => {
+                    // 날짜 추출 (단순 구현: 현재 캘린더 연월과 day-num 조합)
+                    const dayNum = dayDiv.querySelector('.day-num').innerText.padStart(2, '0');
+                    const currentCalDate = `${adminYear}-${String(adminMonth + 1).padStart(2, '0')}-${dayNum}`;
+                    
+                    empDangerRanges.forEach(range => {
+                        if (currentCalDate >= range.start && currentCalDate <= range.end) {
+                            dayDiv.classList.add('highlight-danger-range');
+                        }
+                    });
+                });
+                
+                // 상세 정보창에 알림 표시
+                const editor = document.getElementById('daily-roster-editor');
+                editor.innerHTML = `
+                    <div class="card" style="background:#fff1f2; border:1px solid #fda4af;">
+                        <h4 style="color:#e11d48;">⚠️ 근로시간 초과 주의</h4>
+                        <p style="font-size:0.85rem; margin-top:5px;">
+                            <b>${empName}</b>님은 해당 핑크색 표시 주간에 <br>
+                            주 52시간을 초과하여 편성되었습니다.
+                        </p>
+                    </div>
+                    <p style="margin-top:15px; font-size:0.8rem; color:#6b7280; text-align:center;">
+                        달력에서 날짜를 클릭하여 일정을 조정하세요.
+                    </p>
+                `;
+                document.getElementById('selected-date-view').innerText = `👤 ${empName} 분석`;
+            }, 800);
         }
 
         // [관리자] 근무 편성 관리 페이지 로드
@@ -442,6 +849,11 @@
             selectedDate = dateStr;
             document.getElementById('selected-date-view').innerText = `📅 ${dateStr} 로스터`;
             renderAdminCalendar(); // 하이라이트 적용을 위해 재렌더링
+            
+            // 모바일에서 편집창으로 자동 스크롤
+            if (window.innerWidth < 768) {
+                document.getElementById('admin-editor-panel').scrollIntoView({ behavior: 'smooth' });
+            }
             
             const siteId = document.getElementById('sel-site').value;
             const patterns = allPatterns.filter(p => p.site_id == siteId);
@@ -614,20 +1026,12 @@
                     return dateStr >= start && dateStr <= end && s.site_id == currentSiteId;
                 });
                 
-                dailySchedules.forEach(s => {
+                if (dailySchedules.length > 0) {
                     const tag = document.createElement('div');
-                    tag.className = 'schedule-tag';
-                    tag.style.fontSize = '0.75rem';
-                    tag.style.marginTop = '2px';
-                    
-                    let typeLabel = '';
-                    if(s.type === 'extra') typeLabel = ' [연장]';
-                    if(s.type === 'substitute') typeLabel = ' [대체]';
-                    if(s.status === 'pending') typeLabel += ' (대기)';
-
-                    tag.innerText = `${s.employee_name}${typeLabel}`;
+                    tag.className = 'dot-indicator';
+                    tag.innerText = `👥 ${dailySchedules.length}`;
                     div.appendChild(tag);
-                });
+                }
                 area.appendChild(div);
             }
         }
@@ -688,6 +1092,8 @@
                 const dateStr = `${userYear}-${String(userMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
                 const div = document.createElement('div');
                 div.className = 'cal-day';
+                if (dateStr === selectedUserDate) div.classList.add('selected-date-highlight');
+                div.style.cursor = 'pointer';
                 div.innerHTML = `<span class="day-num">${i}</span>`;
                 
                 const dailySchedules = schedules.filter(s => {
@@ -695,25 +1101,65 @@
                     const end = s.end_date || '9999-12-31';
                     return dateStr >= start && dateStr <= end;
                 });
-                
-                dailySchedules.forEach(s => {
-                    const tag = document.createElement('div');
-                    tag.className = 'schedule-tag';
-                    tag.innerText = `${s.site_name} (${s.pattern_name})`;
-                    div.appendChild(tag);
-                });
 
-                // 근태 로그 표시 (이미 지나간 근무)
                 const dayLog = logs.find(l => l.work_date === dateStr);
+                div.onclick = () => selectUserDate(dateStr, dailySchedules, dayLog);
+                
+                if (dailySchedules.length > 0) {
+                    const tag = document.createElement('div');
+                    tag.className = 'dot-indicator';
+                    tag.innerText = '🗓️';
+                    div.appendChild(tag);
+                }
+
                 if (dayLog) {
-                    const inT = new Date(dayLog.check_in_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-                    const outT = dayLog.check_out_time ? new Date(dayLog.check_out_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '--:--';
                     const logDiv = document.createElement('div');
-                    logDiv.className = 'log-tag';
-                    logDiv.innerHTML = `<span style="color:#6b7280;">📍 ${dayLog.status}</span><br>⏳ ${inT} ~ ${outT}`;
+                    logDiv.className = 'dot-indicator';
+                    logDiv.style.background = '#def7ec';
+                    logDiv.style.color = '#03543f';
+                    logDiv.innerText = '✅';
                     div.appendChild(logDiv);
                 }
                 area.appendChild(div);
+            }
+        }
+
+        function selectUserDate(dateStr, schedules, log) {
+            selectedUserDate = dateStr;
+            renderUserCalendar(); // 하이라이트 적용을 위해 재렌더링
+
+            const detailBox = document.getElementById('user-schedule-detail');
+            const dateTitle = document.getElementById('user-selected-date');
+            const content = document.getElementById('user-detail-content');
+            
+            detailBox.style.display = 'block';
+            dateTitle.innerText = `📅 ${dateStr} 상세 내역`;
+            
+            let html = '';
+            if (schedules.length === 0 && !log) {
+                html = '<p style="color:#9ca3af; text-align:center; padding:20px;">배정된 근무나 기록이 없습니다.</p>';
+            } else {
+                schedules.forEach(s => {
+                    html += `<div class="roster-unit" style="background:#f5f3ff; margin-bottom:10px;">
+                        <strong>📍 현장: ${s.site_name}</strong><br>
+                        <span>⏰ 패턴: ${s.pattern_name} (${s.start_time} ~ ${s.end_time})</span>
+                    </div>`;
+                });
+                if (log) {
+                    const inT = new Date(log.check_in_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+                    const outT = log.check_out_time ? new Date(log.check_out_time).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '퇴근 기록 없음';
+                    html += `<div class="card" style="border:1px solid #10b981; margin-top:10px; background:#f0fdf4;">
+                        <strong style="color:#059669;">✅ 실제 근태 기록</strong><br>
+                        <span style="font-size:0.9rem;">상태: <b>${log.status}</b></span><br>
+                        <span style="font-size:0.9rem;">시간: ${inT} ~ ${outT}</span>
+                    </div>`;
+                }
+            }
+            content.innerHTML = html;
+
+            // 모바일에서 상세 내역 카드로 자동 스크롤
+            if (window.innerWidth < 768) {
+                detailBox.scrollIntoView({ behavior: 'smooth' });
             }
         }
 
@@ -741,7 +1187,7 @@
                     <tr>
                         <td>${s.id}</td>
                         <td>${s.name}</td>
-                        <td>${s.log_count} 건</td>
+                        <td>${s.log_count}</td>
                         <td><button onclick="showSiteDetailReport(${s.id}, '${s.name}')" style="padding:5px 10px; font-size:0.8rem;">상세보기</button></td>
                     </tr>
                 `).join('');
@@ -841,18 +1287,18 @@
             const tbody = document.querySelector('#site-table tbody');
             tbody.innerHTML = allSites.map(s => {
                 const patternsStr = s.patterns && s.patterns.length > 0 
-                    ? s.patterns.map(p => `${p.pattern_name}(${p.start_time}~${p.end_time})`).join(', ')
+                    ? s.patterns.map(p => `${p.pattern_name}(${p.start_time}~${p.end_time}, 휴게 ${p.rest_time || 0}h)`).join(', ')
                     : '-';
                 return `
                 <tr>
-                    <td>${s.id}</td>
-                    <td>${s.name}</td>
-                    <td>${s.address || '-'}</td>
-                    <td>${s.latitude.toFixed(4)}, ${s.longitude.toFixed(4)}</td>
-                    <td><small>${patternsStr}</small></td>
+                    <td class="mobile-hide">${s.id}</td>
+                    <td><strong>${s.name}</strong></td>
+                    <td class="mobile-hide-address">${s.address || '-'}</td>
+                    <td class="mobile-hide">${s.latitude.toFixed(2)}, ${s.longitude.toFixed(2)}</td>
+                    <td><small style="display:block; line-height:1.2;">${patternsStr}</small></td>
                     <td>
-                        <button onclick="editSite(${s.id})" style="padding: 5px 10px; font-size: 0.8rem;">수정</button>
-                        <button onclick="deleteSite(${s.id})" style="padding: 5px 10px; font-size: 0.8rem; background:#ef4444;">삭제</button>
+                        <button class="btn-table" onclick="editSite(${s.id})">수정</button>
+                        <button class="btn-table" onclick="deleteSite(${s.id})" style="background:#ef4444;">삭제</button>
                     </td>
                 </tr>
             `}).join('');
@@ -888,7 +1334,7 @@
             container.innerHTML = '';
             if (site.patterns && site.patterns.length > 0) {
                 site.patterns.forEach(p => {
-                    addPatternRow(p.pattern_name, p.start_time, p.end_time);
+                    addPatternRow(p.pattern_name, p.start_time, p.end_time, p.rest_time);
                 });
             } else {
                 addPatternRow();
@@ -909,13 +1355,14 @@
                     <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 주간조)" required></div>
                     <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
                         <input type="time" class="p-start" required style="flex:1;"> <input type="time" class="p-end" required style="flex:1;">
+                        <input type="number" class="p-rest" placeholder="휴게(h)" min="0" style="flex:0.5;">
                     </div>
                 </div>
             `;
         }
 
         // 근무 패턴 입력행 추가
-        function addPatternRow(name = '', start = '', end = '') {
+        function addPatternRow(name = '', start = '', end = '', rest = 0) {
             const container = document.getElementById('pattern-rows');
             const div = document.createElement('div');
             div.className = 'pattern-entry';
@@ -924,9 +1371,10 @@
             div.style.borderRadius = '6px';
             div.style.marginBottom = '10px';
             div.innerHTML = `
-                <div class="form-row"><input type="text" class="p-name" placeholder="패턴명 (예: 야간조)" required value="${name}"></div>
-                <div class="form-row" style="flex-direction: row; gap: 10px; margin-top:5px;">
+                <div class="form-row" style="margin-bottom: 5px;"><input type="text" class="p-name" placeholder="패턴명 (예: 야간조)" required value="${name}"></div>
+                <div class="responsive-flex" style="gap: 10px;">
                     <input type="time" class="p-start" required style="flex:1;" value="${start}"> <input type="time" class="p-end" required style="flex:1;" value="${end}">
+                    <input type="number" class="p-rest" placeholder="휴게(h)" min="0" style="flex:0.5;" value="${rest}">
                     <button type="button" onclick="this.parentElement.parentElement.remove()" style="background:#ef4444; width:40px; padding:0; color:white; border:none; border-radius:4px; cursor:pointer;">X</button>
                 </div>
             `;
@@ -950,17 +1398,66 @@
         // 근무자 명단 불러오기
         async function loadUsers() {
             const res = await fetch('/api/admin/users');
-            const users = await res.json();
+            allUsers = await res.json();
             const tbody = document.querySelector('#user-table tbody');
-            // department 필드에 site_name이 저장되므로 department로 표시
-            tbody.innerHTML = users.map(u => `
+            
+            tbody.innerHTML = allUsers.map(u => `
                 <tr>
                     <td>${u.id}</td>
                     <td>${u.name}</td>
                     <td>${u.department || '-'}</td>
                     <td>${u.position || '-'}</td>
+                    <td>
+                        <button class="btn-table" onclick="editUser(${u.id})">수정</button>
+                        <button class="btn-table" onclick="deleteUser(${u.id})" style="background:#ef4444;">삭제</button>
+                    </td>
                 </tr>
             `).join('');
+        }
+
+        function editUser(id) {
+            const user = allUsers.find(u => u.id === id);
+            if (!user) return;
+
+            document.getElementById('u-is-edit').value = "true";
+            document.getElementById('u-id').value = user.id;
+            document.getElementById('u-id').readOnly = true; // 사번은 PK이므로 수정 시 읽기전용 처리 권장
+            document.getElementById('u-username').value = user.username || '';
+            document.getElementById('u-pw').value = user.password || '';
+            document.getElementById('u-name').value = user.name || '';
+            document.getElementById('u-site').value = user.site_id || '';
+            document.getElementById('u-pos').value = user.position || '';
+            document.getElementById('u-role').value = user.role || 'user';
+
+            document.getElementById('user-form-title').innerText = "근무자 정보 수정";
+            document.getElementById('user-submit-btn').innerText = "정보 수정하기";
+            document.getElementById('user-cancel-btn').style.display = "inline-block";
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('해당 근무자를 삭제하시겠습니까? 출퇴근 기록 및 스케줄에 영향을 줄 수 있습니다.')) return;
+            const res = await fetch('/api/admin/users/delete', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id })
+            });
+            const result = await res.json();
+            if (result.success) {
+                alert('삭제되었습니다.');
+                loadUsers();
+            } else {
+                alert('삭제 실패: ' + result.message);
+            }
+        }
+
+        function resetUserForm() {
+            document.getElementById('user-form').reset();
+            document.getElementById('u-id').readOnly = false;
+            document.getElementById('u-is-edit').value = "false";
+            document.getElementById('user-form-title').innerText = "신규 근무자(사용자) 등록";
+            document.getElementById('user-submit-btn').innerText = "근무자 등록";
+            document.getElementById('user-cancel-btn').style.display = "none";
         }
 
         // 근무자 등록 폼 제출
@@ -974,7 +1471,8 @@
                 department: document.getElementById('u-site').options[document.getElementById('u-site').selectedIndex].text, // Store site name in department
                 site_id: document.getElementById('u-site').value || null, // Store site_id for site_admin
                 position: document.getElementById('u-pos').value,
-                role: document.getElementById('u-role').value
+                role: document.getElementById('u-role').value,
+                isEdit: document.getElementById('u-is-edit').value === "true"
             };
 
             const res = await fetch('/api/admin/users', {
@@ -984,8 +1482,8 @@
             });
             const result = await res.json();
             if(result.success) {
-                alert('근무자가 등록되었습니다.');
-                e.target.reset();
+                alert(body.isEdit ? '정보가 수정되었습니다.' : '근무자가 등록되었습니다.');
+                resetUserForm();
                 loadUsers();
             } else {
                 alert('등록 실패: ' + result.message);
@@ -997,8 +1495,9 @@
             e.preventDefault();
             const patterns = Array.from(document.querySelectorAll('.pattern-entry')).map(entry => ({
                 name: entry.querySelector('.p-name').value,
-                start: entry.querySelector('.p-start').value,
-                end: entry.querySelector('.p-end').value
+                start_time: entry.querySelector('.p-start').value, // 속성명 변경
+                end_time: entry.querySelector('.p-end').value,     // 속성명 변경
+                rest_time: entry.querySelector('.p-rest').value || 0
             }));
 
             const body = {
@@ -1027,34 +1526,76 @@
 
         async function loadAttendancePage() {
             switchPage('user-attendance');
+            const now = new Date();
+            document.getElementById('att-date-display').innerText = now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+
             const res = await fetch('/api/user/me');
             const data = await res.json();
+            
+            // 상태 메시지 및 버튼 활성화 업데이트
+            const statusMsg = document.getElementById('attendance-status-msg');
+            const btnIn = document.getElementById('btn-att-in');
+            const btnOut = document.getElementById('btn-att-out');
+
+            if (data.check_in_time) {
+                const time = new Date(data.check_in_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                statusMsg.innerHTML = `✅ 오늘의 출근: <span style="color:#10b981;">${time} (${data.attendance_status})</span>`;
+                btnIn.disabled = true;
+                btnIn.style.opacity = "0.5";
+            } else {
+                statusMsg.innerHTML = `🕒 아직 출근 전입니다.`;
+                btnIn.disabled = false;
+                btnIn.style.opacity = "1";
+            }
+
+            if (data.check_out_time) {
+                const time = new Date(data.check_out_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                statusMsg.innerHTML += `<br>✅ 오늘의 퇴근: <span style="color:#ef4444;">${time}</span>`;
+                btnOut.disabled = true;
+                btnOut.style.opacity = "0.5";
+            } else {
+                btnOut.disabled = false;
+                btnOut.style.opacity = "1";
+            }
+
             if (data.site_name) {
                 document.getElementById('today-site').innerText = data.site_name;
                 document.getElementById('today-pattern').innerText = `배정 패턴: ${data.pattern_name} (${data.start_time} ~ ${data.end_time})`;
                 navigator.geolocation.watchPosition(pos => {
+                    lastKnownPos = pos; // 위치 정보 캐싱
                     const dist = getDistance(pos.coords.latitude, pos.coords.longitude, data.latitude, data.longitude);
                     const msgEl = document.getElementById('gps-msg');
                     if (dist <= 50) {
-                        msgEl.innerText = "📡 현장 GPS 인증 완료 (반경 50m 이내)";
+                        msgEl.innerText = "📡 현장 GPS 인증 완료";
                         msgEl.style.background = "#def7ec";
                     } else {
-                        msgEl.innerText = `📡 현장 이탈 (거리: ${Math.round(dist)}m)`;
+                        msgEl.innerText = `📡 현장 이탈 (거리: ${Math.round(dist)})`;
                         msgEl.style.background = "#fee2e2";
                     }
-                });
+                }, err => console.error(err), { enableHighAccuracy: true });
             }
         }
+
         async function submitAttendance(type) {
-            navigator.geolocation.getCurrentPosition(async pos => {
-                const res = await fetch('/api/attendance', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ type, lat: pos.coords.latitude, lng: pos.coords.longitude })
-                });
-                const result = await res.json();
-                alert(result.message);
+            if (!lastKnownPos) {
+                alert("GPS 신호를 수신 중입니다. 잠시 후 다시 시도해주세요.");
+                return;
+            }
+
+            const res = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ 
+                    type, 
+                    lat: lastKnownPos.coords.latitude, 
+                    lng: lastKnownPos.coords.longitude 
+                })
             });
+            const result = await res.json();
+            alert(result.message);
+            if (result.success) {
+                loadAttendancePage(); // 화면 갱신
+            }
         }
         function getDistance(lat1, lon1, lat2, lon2) {
             const R = 6371e3;
