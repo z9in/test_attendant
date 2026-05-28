@@ -64,7 +64,7 @@ app.get('/', isAuthenticated, (req, res) => {
 
 // 내 정보 및 오늘 스케줄 조회 API
 app.get('/api/user/me', isAuthenticated, (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
     const query = `
         SELECT e.name, e.department, e.position, e.role, e.site_id as managed_site_id, ms.name as managed_site_name,
                s.name as site_name, s.latitude, s.longitude, wp.start_time, wp.end_time, wp.pattern_name,
@@ -88,7 +88,7 @@ app.get('/api/user/me', isAuthenticated, (req, res) => {
 
 // [관리자] 대시보드 통계
 app.get('/api/admin/dashboard', isAuthenticated, (req, res) => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' });
     const stats = {};
     db.get("SELECT COUNT(*) as total FROM employee_schedules WHERE ? BETWEEN start_date AND IFNULL(end_date, '9999-12-31')", [today], (err, row) => {
         stats.target = row.total;

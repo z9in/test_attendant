@@ -547,8 +547,9 @@
                 currentEvt.currentTarget.classList.add('active');
             }
 
-            // 모바일에서 페이지 이동 시 사이드바 닫기
-            if (window.innerWidth < 768) {
+            // 모바일에서 페이지 이동 시 사이드바가 열려있다면 닫기
+            const sidebar = document.getElementById('sidebar');
+            if (window.innerWidth < 768 && sidebar.classList.contains('open')) {
                 toggleSidebar();
             }
         }
@@ -893,15 +894,29 @@
                             ${p.pattern_name} <small style="color:#6b7280;">(${p.start_time}~${p.end_time})</small>
                         </div>
                         <div id="roster-list-${p.id}" style="margin-bottom:10px;">
-                            ${assigned.map(s => `
+                            ${assigned.map(s => {
+                                let typeLabel = '일반';
+                                let typeClass = '';
+                                if (s.type === 'extra') { typeLabel = '연장'; typeClass = 'badge-extra'; }
+                                else if (s.type === 'substitute') { typeLabel = '대체'; typeClass = 'badge-sub'; }
+                                
+                                const timeInfo = (s.type === 'extra' || s.type === 'substitute') 
+                                    ? `<small style="color:#6b7280; margin-left:5px;">(${s.extra_start}~${s.extra_end})</small>` 
+                                    : '';
+                                return `
                                 <div style="display:flex; flex-direction:column; font-size:0.9rem; padding:4px 0; border-bottom:1px dashed #eee;">
                                     <div style="display:flex; justify-content:space-between;">
-                                        <span style="${s.status === 'rejected' ? 'text-decoration: line-through; color: #9ca3af;' : ''}">👤 ${s.employee_name} ${s.status === 'pending' ? '<span class="badge badge-pending">대기</span>' : s.status === 'rejected' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">거절</span>' : ''}</span>
+                                        <span style="${s.status === 'rejected' ? 'text-decoration: line-through; color: #9ca3af;' : ''}">
+                                            👤 ${s.employee_name} 
+                                            <span class="badge ${typeClass}" style="${s.type === 'normal' ? 'background:#f3f4f6; color:#4b5563;' : ''}">${typeLabel}</span>
+                                            ${timeInfo}
+                                            ${s.status === 'pending' ? '<span class="badge badge-pending">대기</span>' : s.status === 'rejected' ? '<span class="badge" style="background:#fee2e2; color:#b91c1c;">거절</span>' : ''}
+                                        </span>
                                         <span style="color:#ef4444; cursor:pointer;" onclick="deleteSchedule(${s.id})">✕</span>
                                     </div>
                                     ${s.rejection_reason ? `<div style="font-size:0.75rem; color:#ef4444; margin-top:2px;">🚩 사유: ${s.rejection_reason}</div>` : ''}
                                 </div>
-                            `).join('') || '<p style="font-size:0.8rem; color:#9ca3af;">배정 인원 없음</p>'}
+                            `; }).join('') || '<p style="font-size:0.8rem; color:#9ca3af;">배정 인원 없음</p>'}
                         </div>
                         <div style="margin-bottom:10px; padding: 10px; background:#f9fafb; border-radius:6px; border: 1px solid #eee;">
                             <div class="form-row" style="margin-bottom:8px;">
