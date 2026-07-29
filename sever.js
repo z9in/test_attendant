@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 3000;
 const db = new sqlite3.Database('./database.sqlite');
 
 db.serialize(() => {
-    // 사용자 테이블
+    // 1. 사용자 테이블 생성
     db.run(`CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT UNIQUE NOT NULL,
@@ -25,30 +25,35 @@ db.serialize(() => {
         assigned_date TEXT,
         closed_date TEXT,
         duty_type TEXT DEFAULT '상황실 대원'
-    )`);
+    )`, (err) => {
+        if (!err) {
+            // 💡 최초 최고 관리자 계정이 없으면 자동 생성 (admin / 1234)
+            db.run(`INSERT OR IGNORE INTO users (user_id, password, name, role, mac_status) 
+                    VALUES ('admin', '1234', '최고관리자', 'super_admin', 'APPROVED')`);
+        }
+    });
 
-    // 출퇴근 기록 테이블
+    // 2. 출퇴근 기록 테이블
     db.run(`CREATE TABLE IF NOT EXISTS attendance (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
         clock_in TEXT NOT NULL,
         clock_out TEXT,
-        status TEXT NOT NULL, -- IN, OUT, AUTO_OUT
+        status TEXT NOT NULL,
         mac_address TEXT,
         memo TEXT,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )`);
 
-    // 월간 근무 스케줄 테이블
+    // 3. 월간 근무 스케줄 테이블
     db.run(`CREATE TABLE IF NOT EXISTS schedules (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id INTEGER NOT NULL,
-        work_date TEXT NOT NULL, -- YYYY-MM-DD
-        shift_code TEXT NOT NULL, -- A, B, C, D, E, F, G, H 등
+        work_date TEXT NOT NULL,
+        shift_code TEXT NOT NULL,
         FOREIGN KEY(user_id) REFERENCES users(id)
     )`);
 });
-
 // Express 미들웨어
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
