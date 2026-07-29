@@ -54,7 +54,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'views')));
 
-const SQLiteStore = require('connect-sqlite3')(session);
+// const SQLiteStore = require('connect-sqlite3')(session);
 
 app.use(session({
     store: new SQLiteStore({
