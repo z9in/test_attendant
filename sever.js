@@ -54,12 +54,19 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'views')));
 
+const SQLiteStore = require('connect-sqlite3')(session);
+
 app.use(session({
+    store: new SQLiteStore({
+        db: 'database.sqlite',
+        dir: './'
+    }),
     secret: 'secret-key-attendance-system',
     resave: false,
     saveUninitialized: false,
     cookie: { maxAge: 8 * 60 * 60 * 1000 } // 8시간
 }));
+
 
 // 인증 미들웨어
 function isAuthenticated(req, res, next) {
